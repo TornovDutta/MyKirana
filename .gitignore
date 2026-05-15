@@ -1,0 +1,22 @@
+# Claude Code
+.claude/
+
+# Environment
+.env
+.env.local
+.env.production
+backend/.env
+frontend/.env
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
