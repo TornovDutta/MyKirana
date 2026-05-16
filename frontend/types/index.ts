@@ -96,6 +96,8 @@ export interface Order {
   delivery_fee: number;
   total: number;
   status: OrderStatus;
+  shop_status?: string;
+  shop_subtotal?: number;
   delivery_partner_id?: string;
   notes?: string;
   created_at: string;

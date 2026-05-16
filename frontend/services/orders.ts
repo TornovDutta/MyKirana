@@ -17,4 +17,7 @@ export const orderService = {
     api.patch(`/orders/${orderId}/status`, { status }).then((r) => r.data),
 
   cancel: (orderId: string) => api.patch(`/orders/${orderId}/cancel`).then((r) => r.data),
+
+  shopConfirm: (orderId: string, status: 'confirmed' | 'ready') =>
+    api.patch(`/orders/${orderId}/shop-confirm`, { status }).then((r) => r.data),
 };

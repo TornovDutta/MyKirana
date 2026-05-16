@@ -35,6 +35,8 @@ export default function CustomerLayout() {
       <Tabs.Screen name="profile" options={{ title: 'Profile', tabBarIcon: ({ color, size }) => <Ionicons name="person-outline" size={size} color={color} /> }} />
       <Tabs.Screen name="checkout" options={{ href: null }} />
       <Tabs.Screen name="addresses" options={{ href: null }} />
+      <Tabs.Screen name="shop/[id]" options={{ href: null }} />
+      <Tabs.Screen name="order/[id]" options={{ href: null }} />
     </Tabs>
   );
 }

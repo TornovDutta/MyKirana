@@ -47,6 +47,7 @@ async def place_order(order_data: OrderCreate, current_user=Depends(require_role
         "customer_id": str(current_user["_id"]),
         "items": items,
         "shops_involved": shops_involved,
+        "shop_confirmations": {sid: "pending" for sid in shops_involved},
         "delivery_address": order_data.delivery_address.model_dump(),
         "subtotal": round(subtotal, 2),
         "delivery_fee": delivery_fee,
@@ -80,12 +81,34 @@ async def my_orders(
         shop = await db.shops.find_one({"owner_id": str(current_user["_id"])})
         if not shop:
             return []
-        filter_q["shops_involved"] = str(shop["_id"])
+        shop_id = str(shop["_id"])
+        filter_q["shops_involved"] = shop_id
 
     if status:
         filter_q["status"] = status
 
     orders = await db.orders.find(filter_q).sort("created_at", -1).skip(skip).limit(limit).to_list(length=limit)
+
+    if role == "shop_owner":
+        result = []
+        for o in orders:
+            shop_items = [i for i in o["items"] if i["shop_id"] == shop_id]
+            shop_subtotal = round(sum(i["total"] for i in shop_items), 2)
+            shop_status = o.get("shop_confirmations", {}).get(shop_id, "pending")
+            result.append({
+                "id": str(o["_id"]),
+                "customer_id": o["customer_id"],
+                "items": shop_items,
+                "shop_subtotal": shop_subtotal,
+                "total": o["total"],
+                "status": o["status"],
+                "shop_status": shop_status,
+                "delivery_address": o["delivery_address"],
+                "shops_involved": o["shops_involved"],
+                "created_at": o["created_at"],
+            })
+        return result
+
     return [
         {
             "id": str(o["_id"]),
@@ -118,6 +141,46 @@ async def update_status(order_id: str, body: dict, current_user=Depends(get_curr
         raise HTTPException(status_code=400, detail=f"Status must be one of: {valid}")
     await update_order_status(db, order_id, new_status)
     return {"message": "Status updated"}
+
+
+@router.patch("/{order_id}/shop-confirm")
+async def shop_confirm(order_id: str, body: dict, current_user=Depends(require_role("shop_owner")), db=Depends(get_db)):
+    new_status = body.get("status")
+    if new_status not in ("confirmed", "ready"):
+        raise HTTPException(status_code=400, detail="Status must be 'confirmed' or 'ready'")
+
+    shop = await db.shops.find_one({"owner_id": str(current_user["_id"])})
+    if not shop:
+        raise HTTPException(status_code=404, detail="Shop not found")
+    shop_id = str(shop["_id"])
+
+    order = await db.orders.find_one({"_id": ObjectId(order_id), "shops_involved": shop_id})
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    if order["status"] in (OrderStatus.CANCELLED, OrderStatus.DELIVERED):
+        raise HTTPException(status_code=400, detail="Order is already closed")
+
+    confirmations = order.get("shop_confirmations", {})
+    current_shop_status = confirmations.get(shop_id, "pending")
+    valid_next = {"pending": "confirmed", "confirmed": "ready"}
+    if valid_next.get(current_shop_status) != new_status:
+        raise HTTPException(status_code=400, detail=f"Cannot transition from '{current_shop_status}' to '{new_status}'")
+
+    updated_confirmations = {**confirmations, shop_id: new_status}
+    all_statuses = list(updated_confirmations.values())
+
+    update_fields = {
+        f"shop_confirmations.{shop_id}": new_status,
+        "updated_at": datetime.utcnow(),
+    }
+
+    if all(s == "confirmed" for s in all_statuses):
+        update_fields["status"] = OrderStatus.CONFIRMED
+    if all(s == "ready" for s in all_statuses):
+        update_fields["status"] = OrderStatus.READY
+
+    await db.orders.update_one({"_id": ObjectId(order_id)}, {"$set": update_fields})
+    return {"message": f"Shop status updated to {new_status}"}
 
 
 @router.patch("/{order_id}/cancel")
