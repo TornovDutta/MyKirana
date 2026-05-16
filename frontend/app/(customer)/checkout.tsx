@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity, KeyboardAvoidingView, Platform } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -6,6 +6,8 @@ import Toast from 'react-native-toast-message';
 import { useCartStore } from '../../stores/cartStore';
 import { useLocation } from '../../hooks/useLocation';
 import { orderService } from '../../services/orders';
+import { addressService } from '../../services/addresses';
+import { SavedAddress } from '../../types';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import Colors from '../../constants/colors';
@@ -18,6 +20,19 @@ export default function CheckoutScreen() {
   const [pincode, setPincode] = useState('');
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
+  const [savedAddresses, setSavedAddresses] = useState<SavedAddress[]>([]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  useEffect(() => {
+    addressService.list().then(setSavedAddresses).catch(() => {});
+  }, []);
+
+  function pickAddress(addr: SavedAddress) {
+    setSelectedId(addr.id);
+    setAddress(addr.address);
+    setCity(addr.city);
+    setPincode(addr.pincode);
+  }
 
   async function handlePlaceOrder() {
     if (!address || !city || !pincode) {
@@ -53,9 +68,30 @@ export default function CheckoutScreen() {
 
       <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <Text style={styles.sectionTitle}>Delivery Address</Text>
-        <Input label="Street Address" placeholder="House no, street, area" value={address} onChangeText={setAddress} leftIcon="home-outline" />
-        <Input label="City" placeholder="City" value={city} onChangeText={setCity} leftIcon="business-outline" />
-        <Input label="Pincode" placeholder="6-digit pincode" value={pincode} onChangeText={setPincode} keyboardType="numeric" maxLength={6} leftIcon="location-outline" />
+
+        {savedAddresses.length > 0 && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.savedScroll} contentContainerStyle={styles.savedRow}>
+            {savedAddresses.map((addr) => (
+              <TouchableOpacity
+                key={addr.id}
+                style={[styles.savedChip, selectedId === addr.id && styles.savedChipActive]}
+                onPress={() => pickAddress(addr)}
+                activeOpacity={0.8}
+              >
+                <Ionicons
+                  name={addr.label === 'Home' ? 'home' : addr.label === 'Work' ? 'briefcase' : 'location'}
+                  size={14}
+                  color={selectedId === addr.id ? Colors.white : Colors.primary}
+                />
+                <Text style={[styles.savedChipText, selectedId === addr.id && styles.savedChipTextActive]}>{addr.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        )}
+
+        <Input label="Street Address" placeholder="House no, street, area" value={address} onChangeText={(v) => { setSelectedId(null); setAddress(v); }} leftIcon="home-outline" />
+        <Input label="City" placeholder="City" value={city} onChangeText={(v) => { setSelectedId(null); setCity(v); }} leftIcon="business-outline" />
+        <Input label="Pincode" placeholder="6-digit pincode" value={pincode} onChangeText={(v) => { setSelectedId(null); setPincode(v); }} keyboardType="numeric" maxLength={6} leftIcon="location-outline" />
         <Input label="Notes (optional)" placeholder="e.g. Ring the bell" value={notes} onChangeText={setNotes} leftIcon="chatbubble-outline" multiline />
 
         <Text style={styles.sectionTitle}>Order Summary</Text>
@@ -97,4 +133,10 @@ const styles = StyleSheet.create({
   totalValue: { fontSize: 15, fontWeight: '700', color: Colors.primary },
   note: { fontSize: 12, color: Colors.gray, marginTop: 8 },
   footer: { padding: 16, backgroundColor: Colors.white },
+  savedScroll: { marginBottom: 14 },
+  savedRow: { gap: 8, paddingRight: 4 },
+  savedChip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1.5, borderColor: Colors.primary, backgroundColor: Colors.white },
+  savedChipActive: { backgroundColor: Colors.primary },
+  savedChipText: { fontSize: 13, fontWeight: '600', color: Colors.primary },
+  savedChipTextActive: { color: Colors.white },
 });

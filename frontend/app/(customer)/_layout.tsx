@@ -34,6 +34,7 @@ export default function CustomerLayout() {
       <Tabs.Screen name="orders" options={{ title: 'Orders', tabBarIcon: ({ color, size }) => <Ionicons name="receipt-outline" size={size} color={color} /> }} />
       <Tabs.Screen name="profile" options={{ title: 'Profile', tabBarIcon: ({ color, size }) => <Ionicons name="person-outline" size={size} color={color} /> }} />
       <Tabs.Screen name="checkout" options={{ href: null }} />
+      <Tabs.Screen name="addresses" options={{ href: null }} />
     </Tabs>
   );
 }

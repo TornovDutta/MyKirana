@@ -1,5 +1,5 @@
 from pydantic import BaseModel, EmailStr
-from typing import Optional
+from typing import Optional, List
 from enum import Enum
 from datetime import datetime
 
@@ -8,6 +8,18 @@ class UserRole(str, Enum):
     CUSTOMER = "customer"
     SHOP_OWNER = "shop_owner"
     DELIVERY_PARTNER = "delivery_partner"
+
+
+class AddressCreate(BaseModel):
+    label: str = "Home"
+    address: str
+    city: str
+    pincode: str
+    coordinates: Optional[List[float]] = None
+
+
+class AddressResponse(AddressCreate):
+    id: str
 
 
 class UserCreate(BaseModel):

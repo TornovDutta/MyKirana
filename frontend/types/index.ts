@@ -77,6 +77,15 @@ export interface DeliveryAddress {
   coordinates: [number, number];
 }
 
+export interface SavedAddress {
+  id: string;
+  label: string;
+  address: string;
+  city: string;
+  pincode: string;
+  coordinates?: [number, number];
+}
+
 export interface Order {
   id: string;
   customer_id: string;

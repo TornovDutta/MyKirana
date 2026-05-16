@@ -27,7 +27,7 @@ export default function CustomerProfile() {
 
   const menuItems = [
     { icon: 'receipt-outline', label: 'My Orders', onPress: () => router.push('/(customer)/orders') },
-    { icon: 'location-outline', label: 'Saved Addresses', onPress: () => {} },
+    { icon: 'location-outline', label: 'Saved Addresses', onPress: () => router.push('/(customer)/addresses') },
     { icon: 'help-circle-outline', label: 'Help & Support', onPress: () => {} },
     { icon: 'information-circle-outline', label: 'About MyKirana', onPress: () => {} },
   ];
