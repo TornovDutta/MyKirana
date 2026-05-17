@@ -11,6 +11,7 @@ import Colors from '../../constants/colors';
 export default function ShopProfile() {
   const { user, logout } = useAuthStore();
   const [shop, setShop] = useState<Shop | null>(null);
+  const [toggling, setToggling] = useState(false);
 
   useEffect(() => {
     shopService.getMyShop().then(setShop).catch(() => {});
@@ -23,13 +24,33 @@ export default function ShopProfile() {
     ]);
   }
 
-  async function toggleOpen() {
-    if (!shop) return;
+  async function performToggle() {
+    if (!shop || toggling) return;
+    setToggling(true);
     try {
       await shopService.updateShop({ is_open: !shop.is_open });
       setShop((s) => s ? { ...s, is_open: !s.is_open } : s);
+      Toast.show({ type: 'success', text1: shop.is_open ? 'Shop is now Closed' : 'Shop is now Open' });
     } catch {
       Toast.show({ type: 'error', text1: 'Failed to update shop status' });
+    } finally {
+      setToggling(false);
+    }
+  }
+
+  function toggleOpen() {
+    if (!shop) return;
+    if (shop.is_open) {
+      Alert.alert(
+        'Close Shop',
+        'Are you sure you want to close your shop? Customers will not be able to place new orders.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Close Shop', style: 'destructive', onPress: performToggle },
+        ]
+      );
+    } else {
+      performToggle();
     }
   }
 
@@ -68,10 +89,16 @@ export default function ShopProfile() {
               <Text style={styles.cardValue}>{shop.delivery_radius_km} km</Text>
             </View>
             <View style={[styles.cardRow, { borderBottomWidth: 0 }]}>
-              <Text style={styles.cardLabel}>Shop Status</Text>
+              <View>
+                <Text style={styles.cardLabel}>Shop Status</Text>
+                <Text style={{ fontSize: 12, color: shop.is_open ? Colors.success : Colors.error, marginTop: 2 }}>
+                  {toggling ? 'Updating...' : shop.is_open ? 'Open for orders' : 'Closed'}
+                </Text>
+              </View>
               <Switch
                 value={shop.is_open}
                 onValueChange={toggleOpen}
+                disabled={toggling}
                 trackColor={{ false: Colors.border, true: Colors.primaryLight }}
                 thumbColor={shop.is_open ? Colors.primary : Colors.gray}
               />
