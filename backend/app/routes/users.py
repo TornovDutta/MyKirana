@@ -64,3 +64,4 @@ async def delete_address(address_id: str, current_user=Depends(get_current_user)
     )
     if result.modified_count == 0:
         raise HTTPException(status_code=404, detail="Address not found")
+    return None
