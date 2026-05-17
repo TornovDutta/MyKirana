@@ -127,6 +127,14 @@ export default function ShopDetailScreen() {
         ))}
       </ScrollView>
 
+      {/* Closed banner */}
+      {shop && !shop.is_open && (
+        <View style={styles.closedBanner}>
+          <Ionicons name="lock-closed-outline" size={16} color={Colors.white} />
+          <Text style={styles.closedBannerText}>This shop is currently closed. You cannot add items to your cart.</Text>
+        </View>
+      )}
+
       {/* Products */}
       {loading ? (
         <View style={styles.center}>
@@ -138,7 +146,7 @@ export default function ShopDetailScreen() {
           keyExtractor={(p) => p.id}
           numColumns={2}
           columnWrapperStyle={styles.row}
-          renderItem={({ item }) => <ProductCard product={item} />}
+          renderItem={({ item }) => <ProductCard product={item} shopIsOpen={shop?.is_open ?? true} />}
           contentContainerStyle={styles.list}
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
@@ -183,6 +191,9 @@ const styles = StyleSheet.create({
   catChipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
   catText: { fontSize: 13, color: Colors.textSecondary },
   catTextActive: { color: Colors.white, fontWeight: '600' },
+
+  closedBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: Colors.gray, marginHorizontal: 16, marginTop: 8, marginBottom: 4, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10 },
+  closedBannerText: { flex: 1, fontSize: 13, color: Colors.white, fontWeight: '500' },
 
   row: { paddingHorizontal: 16, gap: 12, marginBottom: 12 },
   list: { paddingTop: 12, paddingBottom: 100 },
