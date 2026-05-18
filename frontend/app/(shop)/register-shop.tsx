@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TextInput,
+  View, Text, StyleSheet, ScrollView, TextInput, Image,
   TouchableOpacity, ActivityIndicator, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
+import * as ImagePicker from 'expo-image-picker';
 import Toast from 'react-native-toast-message';
 import { shopService } from '../../services/shops';
+import { uploadService } from '../../services/upload';
 import Colors from '../../constants/colors';
 
 const CATEGORIES = [
@@ -28,6 +30,7 @@ interface FormState {
   categories: string[];
   lat: number | null;
   lng: number | null;
+  image_url: string | null;
 }
 
 export default function RegisterShop() {
@@ -35,8 +38,10 @@ export default function RegisterShop() {
     name: '', description: '', phone: '', address: '',
     city: '', pincode: '', delivery_radius_km: '5',
     opening_time: '09:00', closing_time: '21:00',
-    categories: [], lat: null, lng: null,
+    categories: [], lat: null, lng: null, image_url: null,
   });
+  const [bannerUri, setBannerUri] = useState<string | null>(null);
+  const [bannerUploading, setBannerUploading] = useState(false);
   const [locLoading, setLocLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
@@ -56,6 +61,33 @@ export default function RegisterShop() {
       Toast.show({ type: 'error', text1: 'Could not get location', text2: 'Please enable location services and try again.' });
     } finally {
       setLocLoading(false);
+    }
+  }
+
+  async function pickBanner() {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Toast.show({ type: 'error', text1: 'Gallery permission denied' });
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [16, 9],
+      quality: 0.8,
+    });
+    if (result.canceled) return;
+    const uri = result.assets[0].uri;
+    setBannerUri(uri);
+    setBannerUploading(true);
+    try {
+      const url = await uploadService.uploadImage(uri);
+      setForm((f) => ({ ...f, image_url: url }));
+    } catch {
+      Toast.show({ type: 'error', text1: 'Failed to upload banner' });
+      setBannerUri(null);
+    } finally {
+      setBannerUploading(false);
     }
   }
 
@@ -98,6 +130,7 @@ export default function RegisterShop() {
         closing_time,
         categories: form.categories,
         location: { type: 'Point', coordinates: [lng, lat] },
+        image_url: form.image_url || undefined,
       });
       Toast.show({ type: 'success', text1: 'Shop registered!', text2: 'Your shop is now live.' });
       router.replace('/(shop)');
@@ -120,6 +153,34 @@ export default function RegisterShop() {
         </View>
 
         <View style={styles.body}>
+          {/* Shop Banner */}
+          <Text style={styles.sectionTitle}>Shop Banner</Text>
+          <TouchableOpacity style={styles.bannerPicker} onPress={pickBanner} disabled={bannerUploading} activeOpacity={0.8}>
+            {bannerUri ? (
+              <>
+                <Image source={{ uri: bannerUri }} style={styles.bannerPreview} />
+                {bannerUploading && (
+                  <View style={styles.bannerOverlay}>
+                    <ActivityIndicator color={Colors.white} />
+                    <Text style={styles.bannerOverlayText}>Uploading...</Text>
+                  </View>
+                )}
+                {!bannerUploading && (
+                  <View style={styles.bannerEditBadge}>
+                    <Ionicons name="camera" size={14} color={Colors.white} />
+                    <Text style={styles.bannerEditText}>Change</Text>
+                  </View>
+                )}
+              </>
+            ) : (
+              <View style={styles.bannerEmpty}>
+                <Ionicons name="image-outline" size={36} color={Colors.gray} />
+                <Text style={styles.bannerEmptyText}>Tap to add a shop banner</Text>
+                <Text style={styles.bannerHint}>Recommended: 16:9, under 5 MB</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+
           {/* Basic Info */}
           <Text style={styles.sectionTitle}>Basic Information</Text>
 
@@ -224,6 +285,15 @@ function Field({
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   header: { backgroundColor: Colors.primary, paddingTop: 56, paddingBottom: 20, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  bannerPicker: { borderRadius: 12, overflow: 'hidden', marginBottom: 8, backgroundColor: Colors.white, borderWidth: 1.5, borderColor: Colors.border, borderStyle: 'dashed' },
+  bannerPreview: { width: '100%', height: 160 },
+  bannerOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  bannerOverlayText: { color: Colors.white, fontWeight: '600' },
+  bannerEditBadge: { position: 'absolute', bottom: 10, right: 10, flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(0,0,0,0.55)', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20 },
+  bannerEditText: { fontSize: 12, color: Colors.white, fontWeight: '600' },
+  bannerEmpty: { height: 160, alignItems: 'center', justifyContent: 'center', gap: 6 },
+  bannerEmptyText: { fontSize: 14, color: Colors.textSecondary, fontWeight: '500' },
+  bannerHint: { fontSize: 12, color: Colors.textLight },
   back: { padding: 4 },
   headerTitle: { fontSize: 18, fontWeight: '700', color: Colors.white },
   body: { padding: 16, paddingBottom: 40 },

@@ -13,7 +13,6 @@ async def get_profile(current_user=Depends(get_current_user)):
     return {
         "id": str(current_user["_id"]),
         "name": current_user["name"],
-        "email": current_user["email"],
         "phone": current_user["phone"],
         "role": current_user["role"],
         "profile_image": current_user.get("profile_image"),

@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel
 from typing import Optional, List
 from enum import Enum
 from datetime import datetime
@@ -22,17 +22,16 @@ class AddressResponse(AddressCreate):
     id: str
 
 
-class UserCreate(BaseModel):
-    name: str
-    email: EmailStr
+class SendOTPRequest(BaseModel):
     phone: str
-    password: str
-    role: UserRole
 
 
-class UserLogin(BaseModel):
-    email: EmailStr
-    password: str
+class VerifyOTPRequest(BaseModel):
+    phone: str
+    otp: str
+    # Required only when registering a new user
+    name: Optional[str] = None
+    role: Optional[UserRole] = None
 
 
 class UserUpdate(BaseModel):
@@ -44,7 +43,6 @@ class UserUpdate(BaseModel):
 class UserResponse(BaseModel):
     id: str
     name: str
-    email: str
     phone: str
     role: UserRole
     profile_image: Optional[str] = None

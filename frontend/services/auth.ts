@@ -2,11 +2,11 @@ import api from './api';
 import { UserRole } from '../types';
 
 export const authService = {
-  register: (data: { name: string; email: string; phone: string; password: string; role: UserRole }) =>
-    api.post('/auth/register', data).then((r) => r.data),
+  sendOtp: (phone: string) =>
+    api.post('/auth/send-otp', { phone }).then((r) => r.data),
 
-  login: (email: string, password: string) =>
-    api.post('/auth/login', { email, password }).then((r) => r.data),
+  verifyOtp: (data: { phone: string; otp: string; name?: string; role?: UserRole }) =>
+    api.post('/auth/verify-otp', data).then((r) => r.data),
 
   getProfile: () => api.get('/users/me').then((r) => r.data),
 
