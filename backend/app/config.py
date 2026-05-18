@@ -17,10 +17,5 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 30
     refresh_token_expire_days: int = 7
 
-    # SMS — set DEV_MODE=true to skip SMS and return OTP in the response
-    dev_mode: bool = True
-    sms_api_key: str = ""
-    otp_expire_minutes: int = 5
-
 
 settings = Settings()

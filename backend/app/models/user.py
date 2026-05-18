@@ -22,28 +22,28 @@ class AddressResponse(AddressCreate):
     id: str
 
 
-class SendOTPRequest(BaseModel):
-    phone: str
+class RegisterRequest(BaseModel):
+    name: str
+    email: str
+    password: str
+    role: UserRole
 
 
-class VerifyOTPRequest(BaseModel):
-    phone: str
-    otp: str
-    # Required only when registering a new user
-    name: Optional[str] = None
-    role: Optional[UserRole] = None
+class LoginRequest(BaseModel):
+    email: str
+    password: str
 
 
 class UserUpdate(BaseModel):
     name: Optional[str] = None
-    phone: Optional[str] = None
+    email: Optional[str] = None
     profile_image: Optional[str] = None
 
 
 class UserResponse(BaseModel):
     id: str
     name: str
-    phone: str
+    email: str
     role: UserRole
     profile_image: Optional[str] = None
     created_at: datetime

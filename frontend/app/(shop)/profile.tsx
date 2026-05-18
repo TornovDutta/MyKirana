@@ -111,7 +111,7 @@ export default function ShopProfile() {
             <Text style={styles.avatarText}>{user?.name?.[0]?.toUpperCase()}</Text>
           </View>
           <Text style={styles.name}>{user?.name}</Text>
-          <Text style={styles.phone}>{user?.phone}</Text>
+          <Text style={styles.email}>{user?.email}</Text>
         </View>
       </View>
 

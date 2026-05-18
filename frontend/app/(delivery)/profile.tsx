@@ -30,7 +30,7 @@ export default function DeliveryProfile() {
           <Ionicons name="bicycle" size={36} color={Colors.white} />
         </View>
         <Text style={styles.name}>{user?.name}</Text>
-        <Text style={styles.phone}>{user?.phone}</Text>
+        <Text style={styles.email}>{user?.email}</Text>
       </View>
 
       <View style={styles.statsRow}>

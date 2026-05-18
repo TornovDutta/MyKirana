@@ -3,7 +3,7 @@ export type UserRole = 'customer' | 'shop_owner' | 'delivery_partner';
 export interface User {
   id: string;
   name: string;
-  phone: string;
+  email: string;
   role: UserRole;
   profile_image?: string;
 }
