@@ -40,7 +40,6 @@ export default function CustomerProfile() {
         </View>
         <Text style={styles.name}>{user?.name}</Text>
         <Text style={styles.email}>{user?.email}</Text>
-        <Text style={styles.phone}>{user?.phone}</Text>
       </View>
 
       <View style={styles.menu}>

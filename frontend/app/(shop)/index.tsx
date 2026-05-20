@@ -1,7 +1,8 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, ActivityIndicator, Alert } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import Toast from 'react-native-toast-message';
 import { shopService } from '../../services/shops';
 import { orderService } from '../../services/orders';
 import { useAuthStore } from '../../stores/authStore';
@@ -16,6 +17,7 @@ export default function ShopDashboard() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [toggling, setToggling] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
@@ -33,6 +35,36 @@ export default function ShopDashboard() {
   useEffect(() => { fetchData(); }, [fetchData]);
 
   const onRefresh = async () => { setRefreshing(true); await fetchData(); setRefreshing(false); };
+
+  async function performToggle() {
+    if (!shop || toggling) return;
+    setToggling(true);
+    try {
+      await shopService.updateShop({ is_open: !shop.is_open });
+      setShop((s) => s ? { ...s, is_open: !s.is_open } : s);
+      Toast.show({ type: 'success', text1: shop.is_open ? 'Shop is now Closed' : 'Shop is now Open' });
+    } catch {
+      Toast.show({ type: 'error', text1: 'Failed to update shop status' });
+    } finally {
+      setToggling(false);
+    }
+  }
+
+  function handleStatusToggle() {
+    if (!shop) return;
+    if (shop.is_open) {
+      Alert.alert(
+        'Close Shop',
+        'Are you sure you want to close your shop? Customers will not be able to place new orders.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Close Shop', style: 'destructive', onPress: performToggle },
+        ]
+      );
+    } else {
+      performToggle();
+    }
+  }
 
   const todaysOrders = orders.filter((o) => {
     const d = new Date(o.created_at);
@@ -65,11 +97,17 @@ export default function ShopDashboard() {
           <Text style={styles.greeting}>Good morning, {user?.name?.split(' ')[0]}</Text>
         </View>
         <TouchableOpacity
-          style={[styles.statusToggle, { backgroundColor: shop.is_open ? Colors.success + '20' : Colors.error + '20' }]}
-          onPress={() => shopService.updateShop({ is_open: !shop.is_open }).then(() => setShop((s) => s ? { ...s, is_open: !s.is_open } : s))}
+          style={[styles.statusToggle, { backgroundColor: shop.is_open ? Colors.success + '20' : Colors.error + '20', opacity: toggling ? 0.6 : 1 }]}
+          onPress={handleStatusToggle}
+          disabled={toggling}
         >
-          <View style={[styles.statusDot, { backgroundColor: shop.is_open ? Colors.success : Colors.error }]} />
-          <Text style={{ color: shop.is_open ? Colors.success : Colors.error, fontWeight: '600', fontSize: 13 }}>{shop.is_open ? 'Open' : 'Closed'}</Text>
+          {toggling
+            ? <ActivityIndicator size="small" color={shop.is_open ? Colors.success : Colors.error} />
+            : <View style={[styles.statusDot, { backgroundColor: shop.is_open ? Colors.success : Colors.error }]} />
+          }
+          <Text style={{ color: shop.is_open ? Colors.success : Colors.error, fontWeight: '600', fontSize: 13 }}>
+            {toggling ? 'Updating...' : shop.is_open ? 'Open' : 'Closed'}
+          </Text>
         </TouchableOpacity>
       </View>
 

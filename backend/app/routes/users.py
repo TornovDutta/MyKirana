@@ -14,7 +14,6 @@ async def get_profile(current_user=Depends(get_current_user)):
         "id": str(current_user["_id"]),
         "name": current_user["name"],
         "email": current_user["email"],
-        "phone": current_user["phone"],
         "role": current_user["role"],
         "profile_image": current_user.get("profile_image"),
         "created_at": current_user["created_at"],
@@ -26,6 +25,11 @@ async def update_profile(update: UserUpdate, current_user=Depends(get_current_us
     data = {k: v for k, v in update.model_dump().items() if v is not None}
     if not data:
         raise HTTPException(status_code=400, detail="No fields to update")
+    if "email" in data:
+        data["email"] = data["email"].strip().lower()
+        existing = await db.users.find_one({"email": data["email"]})
+        if existing and str(existing["_id"]) != str(current_user["_id"]):
+            raise HTTPException(status_code=400, detail="Email already in use")
     data["updated_at"] = datetime.utcnow()
     await db.users.update_one({"_id": current_user["_id"]}, {"$set": data})
     return {"message": "Profile updated"}
@@ -64,3 +68,4 @@ async def delete_address(address_id: str, current_user=Depends(get_current_user)
     )
     if result.modified_count == 0:
         raise HTTPException(status_code=404, detail="Address not found")
+    return None

@@ -7,9 +7,10 @@ import Colors from '../constants/colors';
 
 interface ProductCardProps {
   product: Product;
+  shopIsOpen?: boolean;
 }
 
-export default function ProductCard({ product }: ProductCardProps) {
+export default function ProductCard({ product, shopIsOpen = true }: ProductCardProps) {
   const { addItem, updateQuantity, getItemQuantity } = useCartStore();
   const qty = getItemQuantity(product.id);
 
@@ -39,9 +40,15 @@ export default function ProductCard({ product }: ProductCardProps) {
         </View>
         <View style={styles.actions}>
           {qty === 0 ? (
-            <TouchableOpacity style={styles.addBtn} onPress={() => addItem(product)} activeOpacity={0.8}>
-              <Text style={styles.addBtnText}>Add</Text>
-              <Ionicons name="add" size={16} color={Colors.primary} />
+            <TouchableOpacity
+              style={[styles.addBtn, !shopIsOpen && styles.addBtnDisabled]}
+              onPress={() => shopIsOpen && addItem(product)}
+              activeOpacity={shopIsOpen ? 0.8 : 1}
+            >
+              <Text style={[styles.addBtnText, !shopIsOpen && styles.addBtnTextDisabled]}>
+                {shopIsOpen ? 'Add' : 'Unavailable'}
+              </Text>
+              {shopIsOpen && <Ionicons name="add" size={16} color={Colors.primary} />}
             </TouchableOpacity>
           ) : (
             <View style={styles.qtyRow}>
@@ -49,8 +56,12 @@ export default function ProductCard({ product }: ProductCardProps) {
                 <Ionicons name="remove" size={16} color={Colors.primary} />
               </TouchableOpacity>
               <Text style={styles.qty}>{qty}</Text>
-              <TouchableOpacity style={styles.qtyBtn} onPress={() => updateQuantity(product.id, qty + 1)}>
-                <Ionicons name="add" size={16} color={Colors.primary} />
+              <TouchableOpacity
+                style={styles.qtyBtn}
+                onPress={() => shopIsOpen && updateQuantity(product.id, qty + 1)}
+                activeOpacity={shopIsOpen ? 0.8 : 1}
+              >
+                <Ionicons name="add" size={16} color={shopIsOpen ? Colors.primary : Colors.gray} />
               </TouchableOpacity>
             </View>
           )}
@@ -85,7 +96,9 @@ const styles = StyleSheet.create({
   mrp: { fontSize: 12, color: Colors.gray, textDecorationLine: 'line-through' },
   actions: { marginTop: 8 },
   addBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: Colors.primary, borderRadius: 8, paddingVertical: 6, gap: 4 },
+  addBtnDisabled: { borderColor: Colors.border, backgroundColor: Colors.lightGray },
   addBtnText: { fontSize: 13, fontWeight: '600', color: Colors.primary },
+  addBtnTextDisabled: { color: Colors.gray },
   qtyRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 1.5, borderColor: Colors.primary, borderRadius: 8 },
   qtyBtn: { padding: 6 },
   qty: { fontSize: 14, fontWeight: '700', color: Colors.primary },

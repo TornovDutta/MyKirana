@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, KeyboardAvoidingView, Platform, Image, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import Toast from 'react-native-toast-message';
 import { productService } from '../../services/products';
+import { uploadService } from '../../services/upload';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import { PRODUCT_CATEGORIES } from '../../constants/config';
@@ -20,7 +22,38 @@ export default function AddProductScreen() {
   const [stock, setStock] = useState('');
   const [brand, setBrand] = useState('');
   const [description, setDescription] = useState('');
+  const [imageUri, setImageUri] = useState<string | null>(null);
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [imageUploading, setImageUploading] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  async function pickImage() {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Toast.show({ type: 'error', text1: 'Gallery permission denied' });
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+    if (result.canceled) return;
+    const uri = result.assets[0].uri;
+    setImageUri(uri);
+    setImageUploading(true);
+    try {
+      const url = await uploadService.uploadImage(uri);
+      setImageUrl(url);
+    } catch {
+      Toast.show({ type: 'error', text1: 'Failed to upload image' });
+      setImageUri(null);
+      setImageUrl(null);
+    } finally {
+      setImageUploading(false);
+    }
+  }
 
   async function handleSubmit() {
     if (!name || !price || !mrp || !stock) {
@@ -38,6 +71,7 @@ export default function AddProductScreen() {
         quantity_in_stock: parseInt(stock, 10),
         brand: brand || undefined,
         description: description || undefined,
+        image_url: imageUrl || undefined,
       });
       Toast.show({ type: 'success', text1: 'Product added!' });
       router.back();
@@ -58,6 +92,33 @@ export default function AddProductScreen() {
       </View>
 
       <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+        {/* Product Image */}
+        <Text style={styles.label}>Product Image</Text>
+        <TouchableOpacity style={styles.imagePicker} onPress={pickImage} disabled={imageUploading} activeOpacity={0.8}>
+          {imageUri ? (
+            <>
+              <Image source={{ uri: imageUri }} style={styles.imagePreview} />
+              {imageUploading && (
+                <View style={styles.imageOverlay}>
+                  <ActivityIndicator color={Colors.white} />
+                  <Text style={styles.imageOverlayText}>Uploading...</Text>
+                </View>
+              )}
+              {!imageUploading && (
+                <View style={styles.imageEditBadge}>
+                  <Ionicons name="camera" size={14} color={Colors.white} />
+                  <Text style={styles.imageEditText}>Change</Text>
+                </View>
+              )}
+            </>
+          ) : (
+            <View style={styles.imageEmpty}>
+              <Ionicons name="camera-outline" size={32} color={Colors.gray} />
+              <Text style={styles.imageEmptyText}>Add Photo</Text>
+            </View>
+          )}
+        </TouchableOpacity>
+
         <Input label="Product Name *" placeholder="e.g. Tata Salt 1kg" value={name} onChangeText={setName} />
         <Input label="Brand" placeholder="e.g. Tata" value={brand} onChangeText={setBrand} />
         <Input label="Description" placeholder="Optional description" value={description} onChangeText={setDescription} multiline />
@@ -109,6 +170,14 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   content: { padding: 16, paddingBottom: 40 },
   label: { fontSize: 14, fontWeight: '500', color: Colors.text, marginBottom: 6 },
+  imagePicker: { alignSelf: 'center', width: 140, height: 140, borderRadius: 12, overflow: 'hidden', borderWidth: 1.5, borderColor: Colors.border, borderStyle: 'dashed', marginBottom: 20 },
+  imagePreview: { width: '100%', height: '100%' },
+  imageOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center', gap: 6 },
+  imageOverlayText: { color: Colors.white, fontSize: 12, fontWeight: '600' },
+  imageEditBadge: { position: 'absolute', bottom: 8, right: 8, flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(0,0,0,0.55)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 20 },
+  imageEditText: { fontSize: 11, color: Colors.white, fontWeight: '600' },
+  imageEmpty: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 6 },
+  imageEmptyText: { fontSize: 13, color: Colors.textSecondary },
   chipList: { marginBottom: 16 },
   chips: { gap: 8 },
   chip: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.white },

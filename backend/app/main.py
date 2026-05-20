@@ -1,8 +1,14 @@
+import os
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from app.database import connect_db, disconnect_db
-from app.routes import auth, users, shops, products, orders, delivery
+from app.routes import auth, users, shops, products, orders, delivery, upload
+
+
+UPLOAD_DIR = "uploads"
+os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 
 @asynccontextmanager
@@ -22,7 +28,7 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -33,6 +39,9 @@ app.include_router(shops.router)
 app.include_router(products.router)
 app.include_router(orders.router)
 app.include_router(delivery.router)
+app.include_router(upload.router)
+
+app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 
 
 @app.get("/")
