@@ -1,8 +1,10 @@
-from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from app.services.auth_service import decode_token
-from app.database import get_db
 from bson import ObjectId
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+
+from app.database import get_db
+from app.dependencies import get_auth_service
+from app.interfaces.auth import IAuthService
 
 bearer = HTTPBearer()
 
@@ -10,8 +12,9 @@ bearer = HTTPBearer()
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(bearer),
     db=Depends(get_db),
+    auth: IAuthService = Depends(get_auth_service),
 ):
-    payload = decode_token(credentials.credentials)
+    payload = auth.decode_token(credentials.credentials)
     if not payload or payload.get("type") != "access":
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
 

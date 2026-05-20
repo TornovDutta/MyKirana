@@ -1,20 +1,27 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from datetime import datetime
 from typing import Optional
+
+from bson import ObjectId
+from fastapi import APIRouter, Depends, HTTPException, Query
+
 from app.database import get_db
+from app.dependencies import get_order_service, get_routing_service
+from app.interfaces.order import IOrderService
+from app.interfaces.routing import IRoutingService
 from app.middleware.auth import get_current_user, require_role
 from app.models.order import OrderCreate, OrderStatus
-from app.services.smart_routing import find_optimal_shops
-from app.services.order_service import update_order_status
-from bson import ObjectId
-from datetime import datetime
 
 router = APIRouter(prefix="/orders", tags=["orders"])
 
 
 @router.post("/preview")
-async def preview_order(order_data: OrderCreate, db=Depends(get_db)):
+async def preview_order(
+    order_data: OrderCreate,
+    db=Depends(get_db),
+    routing: IRoutingService = Depends(get_routing_service),
+):
     coords = order_data.delivery_address.coordinates
-    items, delivery_fee = await find_optimal_shops(db, order_data.items, coords)
+    items, delivery_fee = await routing.find_optimal_shops(db, order_data.items, coords)
     subtotal = sum(i["total"] for i in items)
     return {
         "items": items,
@@ -27,9 +34,14 @@ async def preview_order(order_data: OrderCreate, db=Depends(get_db)):
 
 
 @router.post("/", status_code=201)
-async def place_order(order_data: OrderCreate, current_user=Depends(require_role("customer")), db=Depends(get_db)):
+async def place_order(
+    order_data: OrderCreate,
+    current_user=Depends(require_role("customer")),
+    db=Depends(get_db),
+    routing: IRoutingService = Depends(get_routing_service),
+):
     coords = order_data.delivery_address.coordinates
-    items, delivery_fee = await find_optimal_shops(db, order_data.items, coords)
+    items, delivery_fee = await routing.find_optimal_shops(db, order_data.items, coords)
 
     if not items:
         raise HTTPException(status_code=400, detail="No items could be fulfilled by nearby shops")
@@ -134,17 +146,29 @@ async def get_order(order_id: str, current_user=Depends(get_current_user), db=De
 
 
 @router.patch("/{order_id}/status")
-async def update_status(order_id: str, body: dict, current_user=Depends(get_current_user), db=Depends(get_db)):
+async def update_status(
+    order_id: str,
+    body: dict,
+    current_user=Depends(get_current_user),
+    db=Depends(get_db),
+    order_svc: IOrderService = Depends(get_order_service),
+):
     new_status = body.get("status")
     valid = [s.value for s in OrderStatus]
     if new_status not in valid:
         raise HTTPException(status_code=400, detail=f"Status must be one of: {valid}")
-    await update_order_status(db, order_id, new_status)
+    await order_svc.update_order_status(db, order_id, new_status)
     return {"message": "Status updated"}
 
 
 @router.patch("/{order_id}/shop-confirm")
-async def shop_confirm(order_id: str, body: dict, current_user=Depends(require_role("shop_owner")), db=Depends(get_db)):
+async def shop_confirm(
+    order_id: str,
+    body: dict,
+    current_user=Depends(require_role("shop_owner")),
+    db=Depends(get_db),
+    order_svc: IOrderService = Depends(get_order_service),
+):
     new_status = body.get("status")
     if new_status not in ("confirmed", "ready"):
         raise HTTPException(status_code=400, detail="Status must be 'confirmed' or 'ready'")
@@ -184,7 +208,12 @@ async def shop_confirm(order_id: str, body: dict, current_user=Depends(require_r
 
 
 @router.patch("/{order_id}/cancel")
-async def cancel_order(order_id: str, current_user=Depends(require_role("customer")), db=Depends(get_db)):
+async def cancel_order(
+    order_id: str,
+    current_user=Depends(require_role("customer")),
+    db=Depends(get_db),
+    order_svc: IOrderService = Depends(get_order_service),
+):
     order = await db.orders.find_one({"_id": ObjectId(order_id), "customer_id": str(current_user["_id"])})
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
@@ -197,5 +226,5 @@ async def cancel_order(order_id: str, current_user=Depends(require_role("custome
             {"$inc": {"quantity_in_stock": item["quantity"]}},
         )
 
-    await update_order_status(db, order_id, OrderStatus.CANCELLED)
+    await order_svc.update_order_status(db, order_id, OrderStatus.CANCELLED)
     return {"message": "Order cancelled"}
