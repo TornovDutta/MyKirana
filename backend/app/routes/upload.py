@@ -1,15 +1,14 @@
 import os
 import uuid
-from fastapi import APIRouter, Depends, File, UploadFile, HTTPException
+
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+
+from app.config import settings
 from app.middleware.auth import get_current_user
 
-UPLOAD_DIR = "uploads"
-os.makedirs(UPLOAD_DIR, exist_ok=True)
+router = APIRouter(prefix="/upload", tags=["upload"])
 
 ALLOWED_TYPES = {"image/jpeg", "image/png", "image/webp"}
-MAX_SIZE_BYTES = 5 * 1024 * 1024  # 5 MB
-
-router = APIRouter(prefix="/upload", tags=["upload"])
 
 
 @router.post("/image")
@@ -21,15 +20,16 @@ async def upload_image(
         raise HTTPException(status_code=400, detail="Only JPEG, PNG, and WebP images are allowed")
 
     content = await file.read()
-    if len(content) > MAX_SIZE_BYTES:
-        raise HTTPException(status_code=400, detail="Image must be under 5 MB")
+    max_bytes = settings.max_upload_size_mb * 1024 * 1024
+    if len(content) > max_bytes:
+        raise HTTPException(status_code=400, detail=f"Image must be under {settings.max_upload_size_mb} MB")
 
     ext = "jpg"
     if file.filename and "." in file.filename:
         ext = file.filename.rsplit(".", 1)[-1].lower()
 
     filename = f"{uuid.uuid4()}.{ext}"
-    with open(os.path.join(UPLOAD_DIR, filename), "wb") as f:
+    with open(os.path.join(settings.upload_dir, filename), "wb") as f:
         f.write(content)
 
-    return {"url": f"/uploads/{filename}"}
+    return {"url": f"/{settings.upload_dir}/{filename}"}

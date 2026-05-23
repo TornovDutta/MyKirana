@@ -1,11 +1,14 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from datetime import datetime
 from typing import Optional
+
+from bson import ObjectId
+from fastapi import APIRouter, Depends, HTTPException, Query
+
 from app.database import get_db
+from app.dependencies import get_shop_service
+from app.interfaces.shop import IShopService
 from app.middleware.auth import get_current_user, require_role
 from app.models.shop import ShopCreate, ShopUpdate
-from app.services.shop_service import get_nearby_shops
-from bson import ObjectId
-from datetime import datetime
 
 router = APIRouter(prefix="/shops", tags=["shops"])
 
@@ -19,8 +22,9 @@ async def nearby_shops(
     skip: int = 0,
     limit: int = 20,
     db=Depends(get_db),
+    shop_svc: IShopService = Depends(get_shop_service),
 ):
-    shops = await get_nearby_shops(db, lng, lat, radius_km, category, skip, limit)
+    shops = await shop_svc.get_nearby_shops(db, lng, lat, radius_km, category, skip, limit)
     return [
         {
             "id": str(s["_id"]),
@@ -43,7 +47,11 @@ async def nearby_shops(
 
 
 @router.post("/", status_code=201)
-async def create_shop(shop_data: ShopCreate, current_user=Depends(require_role("shop_owner")), db=Depends(get_db)):
+async def create_shop(
+    shop_data: ShopCreate,
+    current_user=Depends(require_role("shop_owner")),
+    db=Depends(get_db),
+):
     if await db.shops.find_one({"owner_id": str(current_user["_id"])}):
         raise HTTPException(status_code=400, detail="You already have a registered shop")
 
@@ -71,7 +79,11 @@ async def get_my_shop(current_user=Depends(require_role("shop_owner")), db=Depen
 
 
 @router.patch("/my")
-async def update_my_shop(update: ShopUpdate, current_user=Depends(require_role("shop_owner")), db=Depends(get_db)):
+async def update_my_shop(
+    update: ShopUpdate,
+    current_user=Depends(require_role("shop_owner")),
+    db=Depends(get_db),
+):
     data = {k: v for k, v in update.model_dump().items() if v is not None}
     if not data:
         raise HTTPException(status_code=400, detail="No fields to update")
