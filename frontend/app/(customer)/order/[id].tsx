@@ -1,11 +1,13 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import {
   View, Text, ScrollView, StyleSheet, TouchableOpacity, ActivityIndicator, Alert,
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import MapView, { Marker } from 'react-native-maps';
 import Toast from 'react-native-toast-message';
 import { orderService } from '../../../services/orders';
+import { deliveryService } from '../../../services/delivery';
 import { Order, OrderStatus } from '../../../types';
 import { ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from '../../../constants/config';
 import Colors from '../../../constants/colors';
@@ -21,6 +23,13 @@ const STATUS_ICONS: Record<string, string> = {
   delivered: 'home-outline',
   cancelled: 'close-circle-outline',
 };
+
+interface DeliveryTrack {
+  current_location: [number, number] | null;
+  status: string;
+  partner_name: string | null;
+  updated_at: string | null;
+}
 
 function StatusTimeline({ status }: { status: OrderStatus }) {
   if (status === 'cancelled') {
@@ -58,11 +67,21 @@ function StatusTimeline({ status }: { status: OrderStatus }) {
   );
 }
 
+function secondsAgoLabel(updatedAt: string | null): string {
+  if (!updatedAt) return '';
+  const diff = Math.max(0, Math.floor((Date.now() - new Date(updatedAt).getTime()) / 1000));
+  if (diff < 60) return `${diff}s ago`;
+  return `${Math.floor(diff / 60)}m ago`;
+}
+
 export default function OrderDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
   const [cancelling, setCancelling] = useState(false);
+  const [track, setTrack] = useState<DeliveryTrack | null>(null);
+  const [, setTick] = useState(0);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const fetchOrder = useCallback(async () => {
     if (!id) return;
@@ -76,7 +95,30 @@ export default function OrderDetailScreen() {
     }
   }, [id]);
 
+  const fetchTrack = useCallback(async () => {
+    if (!id) return;
+    try {
+      const data = await deliveryService.trackDelivery(id);
+      setTrack(data);
+    } catch {
+      /* partner not assigned yet — ignore */
+    }
+  }, [id]);
+
   useEffect(() => { fetchOrder(); }, [fetchOrder]);
+
+  // Poll partner location every 15s while order is in transit
+  useEffect(() => {
+    if (order?.status !== 'picked_up') return;
+    fetchTrack();
+    pollRef.current = setInterval(fetchTrack, 15000);
+    // Refresh "X seconds ago" label every second
+    const tickInterval = setInterval(() => setTick((t) => t + 1), 1000);
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+      clearInterval(tickInterval);
+    };
+  }, [order?.status, fetchTrack]);
 
   function confirmCancel() {
     Alert.alert('Cancel Order', 'Are you sure you want to cancel this order?', [
@@ -103,6 +145,13 @@ export default function OrderDetailScreen() {
   const statusColor = order ? (ORDER_STATUS_COLORS[order.status] ?? Colors.gray) : Colors.gray;
   const statusLabel = order ? (ORDER_STATUS_LABELS[order.status] ?? order.status) : '';
   const date = order ? new Date(order.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+
+  const partnerCoord = track?.current_location
+    ? { latitude: track.current_location[1], longitude: track.current_location[0] }
+    : null;
+  const deliveryCoord = order?.delivery_address?.coordinates
+    ? { latitude: order.delivery_address.coordinates[1], longitude: order.delivery_address.coordinates[0] }
+    : null;
 
   return (
     <View style={styles.container}>
@@ -147,6 +196,57 @@ export default function OrderDetailScreen() {
             <Text style={styles.sectionTitle}>Order Status</Text>
             <StatusTimeline status={order.status} />
           </View>
+
+          {/* Live tracking — only when partner has picked up */}
+          {order.status === 'picked_up' && (
+            <View style={styles.card}>
+              <View style={styles.trackHeader}>
+                <View style={styles.trackTitleRow}>
+                  <View style={styles.liveDot} />
+                  <Text style={styles.sectionTitle}>Live Tracking</Text>
+                </View>
+                {track?.partner_name && (
+                  <Text style={styles.partnerName}>
+                    <Ionicons name="bicycle-outline" size={13} color={Colors.textSecondary} /> {track.partner_name} is on the way
+                  </Text>
+                )}
+              </View>
+
+              {partnerCoord ? (
+                <>
+                  <MapView
+                    style={styles.map}
+                    initialRegion={{
+                      latitude: partnerCoord.latitude,
+                      longitude: partnerCoord.longitude,
+                      latitudeDelta: 0.015,
+                      longitudeDelta: 0.015,
+                    }}
+                  >
+                    <Marker coordinate={partnerCoord} title={track?.partner_name ?? 'Delivery Partner'} description="Heading to you">
+                      <View style={styles.partnerMarker}>
+                        <Ionicons name="bicycle" size={18} color={Colors.white} />
+                      </View>
+                    </Marker>
+
+                    {deliveryCoord && (
+                      <Marker coordinate={deliveryCoord} title="Your Location" pinColor={Colors.primary} />
+                    )}
+                  </MapView>
+                  {track?.updated_at && (
+                    <Text style={styles.lastUpdated}>
+                      Updated {secondsAgoLabel(track.updated_at)}
+                    </Text>
+                  )}
+                </>
+              ) : (
+                <View style={styles.trackWaiting}>
+                  <ActivityIndicator color={Colors.primary} size="small" />
+                  <Text style={styles.trackWaitingText}>Waiting for partner location…</Text>
+                </View>
+              )}
+            </View>
+          )}
 
           {/* Items */}
           <View style={styles.card}>
@@ -242,6 +342,31 @@ const styles = StyleSheet.create({
   statusText: { fontSize: 13, fontWeight: '600' },
 
   sectionTitle: { fontSize: 15, fontWeight: '700', color: Colors.text, marginBottom: 14 },
+
+  // Live tracking styles
+  trackHeader: { marginBottom: 12 },
+  trackTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  liveDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: Colors.success },
+  partnerName: { fontSize: 13, color: Colors.textSecondary, marginTop: 4 },
+  map: { width: '100%', height: 200, borderRadius: 10, overflow: 'hidden' },
+  partnerMarker: {
+    backgroundColor: Colors.secondary,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: Colors.white,
+    shadowColor: Colors.black,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  lastUpdated: { fontSize: 11, color: Colors.textSecondary, textAlign: 'right', marginTop: 6 },
+  trackWaiting: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 16, justifyContent: 'center' },
+  trackWaitingText: { fontSize: 13, color: Colors.textSecondary },
 
   itemRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10 },
   itemBorder: { borderBottomWidth: 1, borderBottomColor: Colors.border },

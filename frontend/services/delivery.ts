@@ -13,4 +13,7 @@ export const deliveryService = {
     api.post(`/delivery/${orderId}/delivered`).then((r) => r.data),
 
   getMyDeliveries: () => api.get('/delivery/my').then((r) => r.data),
+
+  trackDelivery: (orderId: string) =>
+    api.get(`/delivery/${orderId}/track`).then((r) => r.data),
 };

@@ -107,3 +107,31 @@ async def my_deliveries(current_user=Depends(require_role("delivery_partner")), 
         }
         for d in deliveries
     ]
+
+
+@router.get("/{order_id}/track")
+async def track_delivery(
+    order_id: str,
+    current_user=Depends(require_role("customer")),
+    db=Depends(get_db),
+):
+    order = await db.orders.find_one({"_id": ObjectId(order_id), "customer_id": str(current_user["_id"])})
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    delivery = await db.deliveries.find_one({"order_id": order_id})
+    if not delivery:
+        raise HTTPException(status_code=404, detail="No delivery assigned yet")
+
+    partner_name = None
+    if delivery.get("partner_id"):
+        partner = await db.users.find_one({"_id": ObjectId(delivery["partner_id"])})
+        if partner:
+            partner_name = partner.get("name")
+
+    return {
+        "current_location": delivery.get("current_location"),
+        "status": delivery.get("status"),
+        "partner_name": partner_name,
+        "updated_at": delivery.get("updated_at"),
+    }
