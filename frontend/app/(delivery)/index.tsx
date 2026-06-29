@@ -1,5 +1,5 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, FlatList, StyleSheet, TouchableOpacity, RefreshControl, ActivityIndicator } from 'react-native';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import { View, Text, FlatList, StyleSheet, Pressable, RefreshControl, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Toast from 'react-native-toast-message';
 import { deliveryService } from '../../services/delivery';
@@ -37,9 +37,17 @@ export default function AvailableDeliveries() {
 
   useEffect(() => { fetchOrders(); }, [fetchOrders]);
 
-  const onRefresh = async () => { setRefreshing(true); await fetchOrders(); setRefreshing(false); };
+  const onRefresh = useCallback(
+    async () => { setRefreshing(true); await fetchOrders(); setRefreshing(false); },
+    [fetchOrders]
+  );
 
-  async function acceptOrder(orderId: string) {
+  const refreshControl = useMemo(
+    () => <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} />,
+    [refreshing, onRefresh]
+  );
+
+  const acceptOrder = useCallback(async (orderId: string) => {
     setAccepting(orderId);
     try {
       await deliveryService.accept(orderId);
@@ -50,58 +58,58 @@ export default function AvailableDeliveries() {
     } finally {
       setAccepting(null);
     }
-  }
+  }, []);
 
-  if (locLoading) {
-    return <View style={styles.center}><ActivityIndicator size="large" color={Colors.primary} /><Text style={styles.hint}>Detecting location...</Text></View>;
-  }
+  const renderDeliveryCard = useCallback(({ item }: { item: AvailableOrder }) => (
+    <View style={styles.card}>
+      <View style={styles.cardHeader}>
+        <Text style={styles.orderId}>Order #{item.id.slice(-6).toUpperCase()}</Text>
+        <Text style={styles.earnings}>Earn ~₹{(20 + item.total * 0.05).toFixed(0)}</Text>
+      </View>
+      <View style={styles.detail}>
+        <Ionicons name="location-outline" size={15} color={Colors.primary} />
+        <Text style={styles.detailText} numberOfLines={1}>{item.delivery_address.address}, {item.delivery_address.city}</Text>
+      </View>
+      <View style={styles.detail}>
+        <Ionicons name="cube-outline" size={15} color={Colors.gray} />
+        <Text style={styles.detailText}>{item.items_count} items • {item.shops_involved.length} shop(s)</Text>
+      </View>
+      <View style={styles.detail}>
+        <Ionicons name="cash-outline" size={15} color={Colors.gray} />
+        <Text style={styles.detailText}>Order value: ₹{item.total.toFixed(2)}</Text>
+      </View>
+      <Pressable
+        style={({ pressed }) => [styles.acceptBtn, accepting === item.id && styles.acceptBtnDisabled, pressed && accepting !== item.id && { opacity: 0.85 }]}
+        onPress={() => acceptOrder(item.id)}
+        disabled={accepting === item.id}
+      >
+        {accepting === item.id ? (
+          <ActivityIndicator size="small" color={Colors.white} />
+        ) : (
+          <Text style={styles.acceptBtnText}>Accept Delivery</Text>
+        )}
+      </Pressable>
+    </View>
+  ), [acceptOrder, accepting]);
 
-  return (
+  return locLoading ? (
+    <View style={styles.center}><ActivityIndicator size="large" color={Colors.primary} /><Text style={styles.hint}>Detecting location...</Text></View>
+  ) : (
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>Available Orders</Text>
-        <TouchableOpacity onPress={onRefresh} style={styles.refreshBtn}>
+        <Pressable onPress={onRefresh} style={({ pressed }) => [styles.refreshBtn, pressed && { opacity: 0.7 }]}>
           <Ionicons name="refresh" size={20} color={Colors.primary} />
-        </TouchableOpacity>
+        </Pressable>
       </View>
 
       <FlatList
         data={orders}
         keyExtractor={(o) => o.id}
-        renderItem={({ item }) => (
-          <View style={styles.card}>
-            <View style={styles.cardHeader}>
-              <Text style={styles.orderId}>Order #{item.id.slice(-6).toUpperCase()}</Text>
-              <Text style={styles.earnings}>Earn ~₹{(20 + item.total * 0.05).toFixed(0)}</Text>
-            </View>
-            <View style={styles.detail}>
-              <Ionicons name="location-outline" size={15} color={Colors.primary} />
-              <Text style={styles.detailText} numberOfLines={1}>{item.delivery_address.address}, {item.delivery_address.city}</Text>
-            </View>
-            <View style={styles.detail}>
-              <Ionicons name="cube-outline" size={15} color={Colors.gray} />
-              <Text style={styles.detailText}>{item.items_count} items • {item.shops_involved.length} shop(s)</Text>
-            </View>
-            <View style={styles.detail}>
-              <Ionicons name="cash-outline" size={15} color={Colors.gray} />
-              <Text style={styles.detailText}>Order value: ₹{item.total.toFixed(2)}</Text>
-            </View>
-            <TouchableOpacity
-              style={[styles.acceptBtn, accepting === item.id && styles.acceptBtnDisabled]}
-              onPress={() => acceptOrder(item.id)}
-              disabled={accepting === item.id}
-            >
-              {accepting === item.id ? (
-                <ActivityIndicator size="small" color={Colors.white} />
-              ) : (
-                <Text style={styles.acceptBtnText}>Accept Delivery</Text>
-              )}
-            </TouchableOpacity>
-          </View>
-        )}
+        renderItem={renderDeliveryCard}
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} />}
+        refreshControl={refreshControl}
         ListEmptyComponent={
           loading ? (
             <View style={styles.center}><ActivityIndicator color={Colors.primary} /></View>
@@ -125,7 +133,7 @@ const styles = StyleSheet.create({
   title: { fontSize: 22, fontWeight: '700', color: Colors.text },
   refreshBtn: { padding: 8 },
   list: { padding: 16, paddingBottom: 80 },
-  card: { backgroundColor: Colors.white, borderRadius: 12, padding: 16, marginBottom: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 6, elevation: 2 },
+  card: { backgroundColor: Colors.white, borderRadius: 12, padding: 16, marginBottom: 12, boxShadow: '0px 2px 6px rgba(0,0,0,0.06)' },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
   orderId: { fontSize: 16, fontWeight: '700', color: Colors.text },
   earnings: { fontSize: 14, fontWeight: '700', color: Colors.success },

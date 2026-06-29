@@ -33,5 +33,9 @@ class Settings(BaseSettings):
     delivery_fee_per_km: float = 2.0
     max_routing_radius_km: float = 10.0
 
+    # Razorpay
+    razorpay_key_id: str = ""
+    razorpay_key_secret: str = ""
+
 
 settings = Settings()

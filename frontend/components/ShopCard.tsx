@@ -1,5 +1,6 @@
 import React from 'react';
-import { View, Text, Image, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { Shop } from '../types';
@@ -11,10 +12,9 @@ interface ShopCardProps {
 
 export default function ShopCard({ shop }: ShopCardProps) {
   return (
-    <TouchableOpacity
-      style={[styles.card, !shop.is_open && styles.cardClosed]}
+    <Pressable
+      style={({ pressed }) => [styles.card, !shop.is_open && styles.cardClosed, pressed && { opacity: 0.9 }]}
       onPress={() => router.push(`/(customer)/shop/${shop.id}` as any)}
-      activeOpacity={0.9}
     >
       {shop.image_url ? (
         <Image source={{ uri: shop.image_url }} style={[styles.image, !shop.is_open && styles.imageClosed]} />
@@ -64,7 +64,7 @@ export default function ShopCard({ shop }: ShopCardProps) {
           </View>
         )}
       </View>
-    </TouchableOpacity>
+    </Pressable>
   );
 }
 
@@ -74,17 +74,12 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     marginHorizontal: 16,
     marginBottom: 12,
-    shadowColor: Colors.black,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 3,
+    boxShadow: '0px 2px 8px rgba(0,0,0,0.08)',
     overflow: 'hidden',
   },
   cardClosed: {
     backgroundColor: '#F0F0F0',
-    shadowOpacity: 0.03,
-    elevation: 1,
+    boxShadow: '0px 2px 8px rgba(0,0,0,0.03)',
   },
   image: { width: '100%', height: 130 },
   imageClosed: { opacity: 0.4 },

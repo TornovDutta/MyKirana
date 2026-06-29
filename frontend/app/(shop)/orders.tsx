@@ -1,5 +1,5 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, FlatList, StyleSheet, TouchableOpacity, RefreshControl, ActivityIndicator } from 'react-native';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import { View, Text, FlatList, StyleSheet, Pressable, RefreshControl, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Toast from 'react-native-toast-message';
 import { orderService } from '../../services/orders';
@@ -45,9 +45,17 @@ export default function ShopOrdersScreen() {
 
   useEffect(() => { fetchOrders(); }, [fetchOrders]);
 
-  const onRefresh = async () => { setRefreshing(true); await fetchOrders(); setRefreshing(false); };
+  const onRefresh = useCallback(
+    async () => { setRefreshing(true); await fetchOrders(); setRefreshing(false); },
+    [fetchOrders]
+  );
 
-  async function advanceShopStatus(order: Order) {
+  const refreshControl = useMemo(
+    () => <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} />,
+    [refreshing, onRefresh]
+  );
+
+  const advanceShopStatus = useCallback(async (order: Order) => {
     const shopStatus = order.shop_status ?? 'pending';
     const next = SHOP_NEXT_STATUS[shopStatus];
     if (!next) return;
@@ -63,7 +71,74 @@ export default function ShopOrdersScreen() {
     } finally {
       setAdvancing(null);
     }
-  }
+  }, []);
+
+  const renderShopOrder = useCallback(({ item }: { item: Order }) => {
+    const shopStatus = item.shop_status ?? 'pending';
+    const statusColor = SHOP_STATUS_COLORS[shopStatus] ?? Colors.gray;
+    const nextLabel = SHOP_NEXT_LABEL[shopStatus];
+    const isAdvancing = advancing === item.id;
+    const isReady = shopStatus === 'ready';
+    const overallColor = ORDER_STATUS_COLORS[item.status] ?? Colors.gray;
+
+    return (
+      <View style={styles.card}>
+        <View style={styles.cardHeader}>
+          <Text style={styles.orderId}>#{item.id.slice(-6).toUpperCase()}</Text>
+          <View style={[styles.statusBadge, { backgroundColor: statusColor + '20' }]}>
+            <Text style={[styles.statusText, { color: statusColor }]}>
+              {SHOP_STATUS_LABELS[shopStatus] ?? shopStatus}
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.itemsBlock}>
+          {item.items.map((i) => (
+            <View key={i.product_id} style={styles.itemRow}>
+              <Text style={styles.itemName} numberOfLines={1}>{i.product_name}</Text>
+              <Text style={styles.itemMeta}>×{i.quantity}  ₹{i.total.toFixed(2)}</Text>
+            </View>
+          ))}
+        </View>
+
+        <View style={styles.cardFooter}>
+          <View>
+            <Text style={styles.subtotalLabel}>Your subtotal</Text>
+            <Text style={styles.subtotal}>₹{(item.shop_subtotal ?? 0).toFixed(2)}</Text>
+          </View>
+
+          {isReady ? (
+            <View style={styles.readyChip}>
+              <Ionicons name="checkmark-circle" size={16} color={Colors.success} />
+              <Text style={styles.readyText}>
+                {item.status === 'ready' ? 'Awaiting pickup' : 'Waiting for other shops'}
+              </Text>
+            </View>
+          ) : (
+            <Pressable
+              style={({ pressed }) => [styles.advanceBtn, { backgroundColor: statusColor }, isAdvancing && styles.advanceBtnDisabled, pressed && !isAdvancing && { opacity: 0.85 }]}
+              onPress={() => advanceShopStatus(item)}
+              disabled={isAdvancing}
+            >
+              {isAdvancing
+                ? <ActivityIndicator size="small" color={Colors.white} />
+                : <Text style={styles.advanceBtnText}>{nextLabel}</Text>}
+            </Pressable>
+          )}
+        </View>
+
+        {item.shops_involved.length > 1 && (
+          <View style={styles.overallRow}>
+            <Text style={styles.overallLabel}>Overall order: </Text>
+            <View style={[styles.overallBadge, { backgroundColor: overallColor + '20' }]}>
+              <Text style={[styles.overallStatus, { color: overallColor }]}>{item.status}</Text>
+            </View>
+            <Text style={styles.overallLabel}> • {item.shops_involved.length} shops</Text>
+          </View>
+        )}
+      </View>
+    );
+  }, [advancing, advanceShopStatus]);
 
   return (
     <View style={styles.container}>
@@ -75,77 +150,10 @@ export default function ShopOrdersScreen() {
       <FlatList
         data={orders}
         keyExtractor={(o) => o.id}
-        renderItem={({ item }) => {
-          const shopStatus = item.shop_status ?? 'pending';
-          const statusColor = SHOP_STATUS_COLORS[shopStatus] ?? Colors.gray;
-          const nextLabel = SHOP_NEXT_LABEL[shopStatus];
-          const isAdvancing = advancing === item.id;
-          const isReady = shopStatus === 'ready';
-          const overallColor = ORDER_STATUS_COLORS[item.status] ?? Colors.gray;
-
-          return (
-            <View style={styles.card}>
-              <View style={styles.cardHeader}>
-                <Text style={styles.orderId}>#{item.id.slice(-6).toUpperCase()}</Text>
-                <View style={[styles.statusBadge, { backgroundColor: statusColor + '20' }]}>
-                  <Text style={[styles.statusText, { color: statusColor }]}>
-                    {SHOP_STATUS_LABELS[shopStatus] ?? shopStatus}
-                  </Text>
-                </View>
-              </View>
-
-              {/* Items from this shop only */}
-              <View style={styles.itemsBlock}>
-                {item.items.map((i, idx) => (
-                  <View key={idx} style={styles.itemRow}>
-                    <Text style={styles.itemName} numberOfLines={1}>{i.product_name}</Text>
-                    <Text style={styles.itemMeta}>×{i.quantity}  ₹{i.total.toFixed(2)}</Text>
-                  </View>
-                ))}
-              </View>
-
-              <View style={styles.cardFooter}>
-                <View>
-                  <Text style={styles.subtotalLabel}>Your subtotal</Text>
-                  <Text style={styles.subtotal}>₹{(item.shop_subtotal ?? 0).toFixed(2)}</Text>
-                </View>
-
-                {isReady ? (
-                  <View style={styles.readyChip}>
-                    <Ionicons name="checkmark-circle" size={16} color={Colors.success} />
-                    <Text style={styles.readyText}>
-                      {item.status === 'ready' ? 'Awaiting pickup' : 'Waiting for other shops'}
-                    </Text>
-                  </View>
-                ) : (
-                  <TouchableOpacity
-                    style={[styles.advanceBtn, { backgroundColor: statusColor }, isAdvancing && styles.advanceBtnDisabled]}
-                    onPress={() => advanceShopStatus(item)}
-                    disabled={isAdvancing}
-                  >
-                    {isAdvancing
-                      ? <ActivityIndicator size="small" color={Colors.white} />
-                      : <Text style={styles.advanceBtnText}>{nextLabel}</Text>}
-                  </TouchableOpacity>
-                )}
-              </View>
-
-              {/* Show overall order status as secondary info */}
-              {item.shops_involved.length > 1 && (
-                <View style={styles.overallRow}>
-                  <Text style={styles.overallLabel}>Overall order: </Text>
-                  <View style={[styles.overallBadge, { backgroundColor: overallColor + '20' }]}>
-                    <Text style={[styles.overallStatus, { color: overallColor }]}>{item.status}</Text>
-                  </View>
-                  <Text style={styles.overallLabel}> • {item.shops_involved.length} shops</Text>
-                </View>
-              )}
-            </View>
-          );
-        }}
+        renderItem={renderShopOrder}
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} />}
+        refreshControl={refreshControl}
         ListEmptyComponent={
           <View style={styles.empty}>
             <Ionicons name="receipt-outline" size={48} color={Colors.gray} />
@@ -164,7 +172,7 @@ const styles = StyleSheet.create({
   count: { fontSize: 14, color: Colors.textSecondary },
   list: { padding: 16, paddingBottom: 80 },
 
-  card: { backgroundColor: Colors.white, borderRadius: 12, padding: 14, marginBottom: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 6, elevation: 2 },
+  card: { backgroundColor: Colors.white, borderRadius: 12, padding: 14, marginBottom: 12, boxShadow: '0px 1px 6px rgba(0,0,0,0.06)' },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
   orderId: { fontSize: 15, fontWeight: '700', color: Colors.text },
   statusBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },

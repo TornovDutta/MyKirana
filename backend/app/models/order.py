@@ -50,3 +50,9 @@ class OrderResponse(BaseModel):
     notes: Optional[str] = None
     created_at: datetime
     updated_at: datetime
+
+
+class PaymentVerification(BaseModel):
+    razorpay_order_id: str
+    razorpay_payment_id: str
+    razorpay_signature: str

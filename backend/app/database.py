@@ -9,7 +9,12 @@ async def connect_db():
     global client, db
     client = AsyncIOMotorClient(settings.mongodb_url)
     db = client[settings.database_name]
-    await db.users.create_index("phone", unique=True)
+    try:
+        await db.users.drop_index("phone_1")
+    except Exception:
+        pass
+    await db.users.create_index("phone", unique=True, sparse=True)
+    await db.users.create_index("email", unique=True, sparse=True)
     await db.shops.create_index([("location", "2dsphere")])
     await db.shops.create_index("owner_id")
     await db.products.create_index("shop_id")

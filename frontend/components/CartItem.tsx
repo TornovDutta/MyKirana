@@ -1,5 +1,6 @@
 import React from 'react';
-import { View, Text, Image, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { CartItem as CartItemType } from '../types';
 import { useCartStore } from '../stores/cartStore';
@@ -28,17 +29,17 @@ export default function CartItem({ item }: CartItemProps) {
         <Text style={styles.price}>₹{product.price} × {quantity} = <Text style={styles.total}>₹{(product.price * quantity).toFixed(2)}</Text></Text>
       </View>
       <View style={styles.controls}>
-        <TouchableOpacity onPress={() => removeItem(product.id)} style={styles.deleteBtn}>
+        <Pressable onPress={() => removeItem(product.id)} style={styles.deleteBtn}>
           <Ionicons name="trash-outline" size={16} color={Colors.error} />
-        </TouchableOpacity>
+        </Pressable>
         <View style={styles.qtyRow}>
-          <TouchableOpacity style={styles.qtyBtn} onPress={() => updateQuantity(product.id, quantity - 1)}>
+          <Pressable style={styles.qtyBtn} onPress={() => updateQuantity(product.id, quantity - 1)}>
             <Ionicons name="remove" size={14} color={Colors.primary} />
-          </TouchableOpacity>
+          </Pressable>
           <Text style={styles.qty}>{quantity}</Text>
-          <TouchableOpacity style={styles.qtyBtn} onPress={() => updateQuantity(product.id, quantity + 1)}>
+          <Pressable style={styles.qtyBtn} onPress={() => updateQuantity(product.id, quantity + 1)}>
             <Ionicons name="add" size={14} color={Colors.primary} />
-          </TouchableOpacity>
+          </Pressable>
         </View>
       </View>
     </View>

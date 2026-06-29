@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { View, Text, FlatList, StyleSheet, RefreshControl } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { deliveryService } from '../../services/delivery';
@@ -20,9 +20,35 @@ export default function DeliveryHistory() {
 
   useEffect(() => { fetchHistory(); }, [fetchHistory]);
 
-  const onRefresh = async () => { setRefreshing(true); await fetchHistory(); setRefreshing(false); };
+  const onRefresh = useCallback(
+    async () => { setRefreshing(true); await fetchHistory(); setRefreshing(false); },
+    [fetchHistory]
+  );
+
+  const refreshControl = useMemo(
+    () => <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} />,
+    [refreshing, onRefresh]
+  );
 
   const completedCount = deliveries.filter((d) => d.status === 'delivered').length;
+
+  const renderDeliveryCard = useCallback(({ item }: { item: Delivery }) => (
+    <View style={styles.card}>
+      <View style={styles.cardHeader}>
+        <Text style={styles.orderId}>Order #{item.order_id.slice(-6).toUpperCase()}</Text>
+        <View style={[styles.statusBadge, { backgroundColor: item.status === 'delivered' ? Colors.success + '20' : Colors.warning + '20' }]}>
+          <Text style={{ fontSize: 12, fontWeight: '600', color: item.status === 'delivered' ? Colors.success : Colors.warning }}>
+            {item.status === 'delivered' ? 'Delivered' : item.status}
+          </Text>
+        </View>
+      </View>
+      <View style={styles.detail}>
+        <Ionicons name="location-outline" size={14} color={Colors.gray} />
+        <Text style={styles.detailText} numberOfLines={1}>{item.delivery_address}</Text>
+      </View>
+      <Text style={styles.date}>{new Date(item.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</Text>
+    </View>
+  ), []);
 
   return (
     <View style={styles.container}>
@@ -34,26 +60,10 @@ export default function DeliveryHistory() {
       <FlatList
         data={deliveries}
         keyExtractor={(d) => d.id}
-        renderItem={({ item }) => (
-          <View style={styles.card}>
-            <View style={styles.cardHeader}>
-              <Text style={styles.orderId}>Order #{item.order_id.slice(-6).toUpperCase()}</Text>
-              <View style={[styles.statusBadge, { backgroundColor: item.status === 'delivered' ? Colors.success + '20' : Colors.warning + '20' }]}>
-                <Text style={{ fontSize: 12, fontWeight: '600', color: item.status === 'delivered' ? Colors.success : Colors.warning }}>
-                  {item.status === 'delivered' ? 'Delivered' : item.status}
-                </Text>
-              </View>
-            </View>
-            <View style={styles.detail}>
-              <Ionicons name="location-outline" size={14} color={Colors.gray} />
-              <Text style={styles.detailText} numberOfLines={1}>{item.delivery_address}</Text>
-            </View>
-            <Text style={styles.date}>{new Date(item.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</Text>
-          </View>
-        )}
+        renderItem={renderDeliveryCard}
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} />}
+        refreshControl={refreshControl}
         ListEmptyComponent={
           <View style={styles.empty}>
             <Ionicons name="time-outline" size={48} color={Colors.gray} />

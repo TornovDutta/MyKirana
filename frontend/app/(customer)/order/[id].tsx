@@ -1,6 +1,6 @@
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useReducer, useCallback, useRef } from 'react';
 import {
-  View, Text, ScrollView, StyleSheet, TouchableOpacity, ActivityIndicator, Alert,
+  View, Text, ScrollView, StyleSheet, Pressable, ActivityIndicator, Alert,
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -74,24 +74,38 @@ function secondsAgoLabel(updatedAt: string | null): string {
   return `${Math.floor(diff / 60)}m ago`;
 }
 
+interface OrderDetailState { order: Order | null; loading: boolean; cancelling: boolean; track: DeliveryTrack | null; tick: number; }
+type OrderDetailAction =
+  | { type: 'set_order'; value: Order | null }
+  | { type: 'set_loading'; value: boolean }
+  | { type: 'set_cancelling'; value: boolean }
+  | { type: 'set_track'; value: DeliveryTrack | null }
+  | { type: 'tick' };
+function orderDetailReducer(state: OrderDetailState, action: OrderDetailAction): OrderDetailState {
+  switch (action.type) {
+    case 'set_order': return { ...state, order: action.value };
+    case 'set_loading': return { ...state, loading: action.value };
+    case 'set_cancelling': return { ...state, cancelling: action.value };
+    case 'set_track': return { ...state, track: action.value };
+    case 'tick': return { ...state, tick: state.tick + 1 };
+  }
+}
+
 export default function OrderDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const [order, setOrder] = useState<Order | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [cancelling, setCancelling] = useState(false);
-  const [track, setTrack] = useState<DeliveryTrack | null>(null);
-  const [, setTick] = useState(0);
+  const [state, dispatch] = useReducer(orderDetailReducer, { order: null, loading: true, cancelling: false, track: null, tick: 0 });
+  const { order, loading, cancelling, track } = state;
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const fetchOrder = useCallback(async () => {
     if (!id) return;
     try {
       const data = await orderService.getById(id);
-      setOrder(data);
+      dispatch({ type: 'set_order', value: data });
     } catch {
       Toast.show({ type: 'error', text1: 'Could not load order' });
     } finally {
-      setLoading(false);
+      dispatch({ type: 'set_loading', value: false });
     }
   }, [id]);
 
@@ -99,7 +113,7 @@ export default function OrderDetailScreen() {
     if (!id) return;
     try {
       const data = await deliveryService.trackDelivery(id);
-      setTrack(data);
+      dispatch({ type: 'set_track', value: data });
     } catch {
       /* partner not assigned yet — ignore */
     }
@@ -113,7 +127,7 @@ export default function OrderDetailScreen() {
     fetchTrack();
     pollRef.current = setInterval(fetchTrack, 15000);
     // Refresh "X seconds ago" label every second
-    const tickInterval = setInterval(() => setTick((t) => t + 1), 1000);
+    const tickInterval = setInterval(() => dispatch({ type: 'tick' }), 1000);
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
       clearInterval(tickInterval);
@@ -129,7 +143,7 @@ export default function OrderDetailScreen() {
 
   async function handleCancel() {
     if (!id) return;
-    setCancelling(true);
+    dispatch({ type: 'set_cancelling', value: true });
     try {
       await orderService.cancel(id);
       Toast.show({ type: 'success', text1: 'Order cancelled' });
@@ -137,7 +151,7 @@ export default function OrderDetailScreen() {
     } catch (err: any) {
       Toast.show({ type: 'error', text1: err.response?.data?.detail ?? 'Could not cancel order' });
     } finally {
-      setCancelling(false);
+      dispatch({ type: 'set_cancelling', value: false });
     }
   }
 
@@ -156,16 +170,16 @@ export default function OrderDetailScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.headerBar}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+        <Pressable onPress={() => router.back()} style={styles.backBtn}>
           <Ionicons name="arrow-back" size={22} color={Colors.text} />
-        </TouchableOpacity>
+        </Pressable>
         <Text style={styles.headerTitle}>Order Details</Text>
         {canCancel && (
-          <TouchableOpacity onPress={confirmCancel} style={styles.cancelBtn} disabled={cancelling}>
+          <Pressable onPress={confirmCancel} style={styles.cancelBtn} disabled={cancelling}>
             {cancelling
               ? <ActivityIndicator size="small" color={Colors.error} />
               : <Text style={styles.cancelText}>Cancel</Text>}
-          </TouchableOpacity>
+          </Pressable>
         )}
       </View>
 
@@ -252,7 +266,7 @@ export default function OrderDetailScreen() {
           <View style={styles.card}>
             <Text style={styles.sectionTitle}>Items ({order.items.length})</Text>
             {order.items.map((item, idx) => (
-              <View key={idx} style={[styles.itemRow, idx < order.items.length - 1 && styles.itemBorder]}>
+              <View key={item.product_id} style={[styles.itemRow, idx < order.items.length - 1 && styles.itemBorder]}>
                 <View style={styles.itemLeft}>
                   <Text style={styles.itemName}>{item.product_name}</Text>
                   <Text style={styles.itemQty}>× {item.quantity}</Text>
@@ -299,10 +313,10 @@ export default function OrderDetailScreen() {
             </View>
           ) : null}
 
-          <TouchableOpacity style={styles.ordersLink} onPress={() => router.replace('/(customer)/orders')}>
+          <Pressable style={styles.ordersLink} onPress={() => router.replace('/(customer)/orders')}>
             <Ionicons name="receipt-outline" size={16} color={Colors.primary} />
             <Text style={styles.ordersLinkText}>View all orders</Text>
-          </TouchableOpacity>
+          </Pressable>
         </ScrollView>
       )}
     </View>
@@ -333,7 +347,7 @@ const styles = StyleSheet.create({
   hint: { fontSize: 14, color: Colors.textSecondary },
 
   content: { padding: 16, gap: 12, paddingBottom: 40 },
-  card: { backgroundColor: Colors.white, borderRadius: 12, padding: 16, shadowColor: Colors.black, shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 6, elevation: 2 },
+  card: { backgroundColor: Colors.white, borderRadius: 12, padding: 16, boxShadow: '0px 1px 6px rgba(0,0,0,0.06)' },
 
   orderHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   orderId: { fontSize: 18, fontWeight: '800', color: Colors.text },
@@ -358,11 +372,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderWidth: 2,
     borderColor: Colors.white,
-    shadowColor: Colors.black,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 4,
+    boxShadow: '0px 2px 4px rgba(0,0,0,0.25)',
   },
   lastUpdated: { fontSize: 11, color: Colors.textSecondary, textAlign: 'right', marginTop: 6 },
   trackWaiting: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 16, justifyContent: 'center' },

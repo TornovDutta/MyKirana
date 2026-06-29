@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, Alert, Image, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, Switch, Alert, ActivityIndicator } from 'react-native';
+import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
@@ -88,7 +89,7 @@ export default function ShopProfile() {
       <View style={styles.header}>
         {/* Shop banner */}
         {shop && (
-          <TouchableOpacity style={styles.bannerContainer} onPress={updateBanner} disabled={bannerUploading} activeOpacity={0.85}>
+          <Pressable style={({ pressed }) => [styles.bannerContainer, pressed && !bannerUploading && { opacity: 0.85 }]} onPress={updateBanner} disabled={bannerUploading}>
             {shop.image_url ? (
               <Image source={{ uri: shop.image_url }} style={styles.bannerImage} />
             ) : (
@@ -102,7 +103,7 @@ export default function ShopProfile() {
                 : <Ionicons name="camera" size={16} color={Colors.white} />}
               <Text style={styles.bannerEditText}>{bannerUploading ? 'Uploading...' : 'Edit Banner'}</Text>
             </View>
-          </TouchableOpacity>
+          </Pressable>
         )}
 
         {/* Owner info */}
@@ -160,16 +161,16 @@ export default function ShopProfile() {
         <View style={styles.noShop}>
           <Ionicons name="storefront-outline" size={48} color={Colors.gray} />
           <Text style={styles.noShopText}>No shop registered yet</Text>
-          <TouchableOpacity style={styles.registerBtn} onPress={() => router.push('/(shop)/register-shop')}>
+          <Pressable style={styles.registerBtn} onPress={() => router.push('/(shop)/register-shop')}>
             <Text style={styles.registerBtnText}>Register Your Shop</Text>
-          </TouchableOpacity>
+          </Pressable>
         </View>
       )}
 
-      <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
+      <Pressable style={styles.logoutBtn} onPress={handleLogout}>
         <Ionicons name="log-out-outline" size={20} color={Colors.error} />
         <Text style={styles.logoutText}>Logout</Text>
-      </TouchableOpacity>
+      </Pressable>
     </ScrollView>
   );
 }

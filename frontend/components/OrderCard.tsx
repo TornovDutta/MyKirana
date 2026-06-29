@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Order } from '../types';
@@ -8,19 +8,18 @@ import Colors from '../constants/colors';
 
 interface OrderCardProps {
   order: Order;
-  role?: 'customer' | 'shop_owner' | 'delivery_partner';
+  viewerRole?: 'customer' | 'shop_owner' | 'delivery_partner';
 }
 
-export default function OrderCard({ order, role = 'customer' }: OrderCardProps) {
+export default function OrderCard({ order, viewerRole = 'customer' }: OrderCardProps) {
   const statusColor = ORDER_STATUS_COLORS[order.status] ?? Colors.gray;
   const statusLabel = ORDER_STATUS_LABELS[order.status] ?? order.status;
   const date = new Date(order.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 
   return (
-    <TouchableOpacity
-      style={styles.card}
-      onPress={() => role === 'customer' && router.push(`/(customer)/order/${order.id}` as any)}
-      activeOpacity={0.85}
+    <Pressable
+      style={({ pressed }) => [styles.card, pressed && viewerRole === 'customer' && { opacity: 0.85 }]}
+      onPress={() => viewerRole === 'customer' && router.push(`/(customer)/order/${order.id}` as any)}
     >
       <View style={styles.header}>
         <Text style={styles.orderId}>#{order.id.slice(-6).toUpperCase()}</Text>
@@ -40,7 +39,7 @@ export default function OrderCard({ order, role = 'customer' }: OrderCardProps) 
           <Text style={styles.footerMetaText}>{order.items.length} items</Text>
         </View>
       </View>
-    </TouchableOpacity>
+    </Pressable>
   );
 }
 
@@ -51,11 +50,7 @@ const styles = StyleSheet.create({
     padding: 14,
     marginHorizontal: 16,
     marginBottom: 10,
-    shadowColor: Colors.black,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 6,
-    elevation: 2,
+    boxShadow: '0px 1px 6px rgba(0,0,0,0.06)',
   },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   orderId: { fontSize: 15, fontWeight: '700', color: Colors.text },

@@ -1,10 +1,9 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, FlatList, StyleSheet, RefreshControl, TouchableOpacity } from 'react-native';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import { View, Text, FlatList, StyleSheet, RefreshControl, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { orderService } from '../../services/orders';
 import OrderCard from '../../components/OrderCard';
 import { Order, OrderStatus } from '../../types';
-import { ORDER_STATUS_LABELS } from '../../constants/config';
 import Colors from '../../constants/colors';
 
 const FILTERS: Array<{ label: string; value: OrderStatus | null }> = [
@@ -21,20 +20,40 @@ export default function OrdersScreen() {
 
   const fetchOrders = useCallback(async () => {
     try {
-      const data = await orderService.getMyOrders(filter ?? undefined);
+      const data = await orderService.getMyOrders();
       setOrders(data);
     } catch {
       /* handled silently */
     }
-  }, [filter]);
+  }, []);
 
   useEffect(() => { fetchOrders(); }, [fetchOrders]);
 
-  const onRefresh = async () => {
+  const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await fetchOrders();
     setRefreshing(false);
-  };
+  }, [fetchOrders]);
+
+  const refreshControl = useMemo(
+    () => <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} />,
+    [refreshing, onRefresh]
+  );
+
+  const visibleOrders = filter ? orders.filter((o) => o.status === filter) : orders;
+
+  const renderFilterChip = useCallback(({ item }: { item: typeof FILTERS[number] }) => (
+    <Pressable
+      style={({ pressed }) => [styles.filterChip, filter === item.value && styles.filterActive, pressed && { opacity: 0.7 }]}
+      onPress={() => setFilter(item.value)}
+    >
+      <Text style={[styles.filterText, filter === item.value && styles.filterTextActive]}>{item.label}</Text>
+    </Pressable>
+  ), [filter]);
+
+  const renderOrderCard = useCallback(({ item }: { item: Order }) => (
+    <OrderCard order={item} viewerRole="customer" />
+  ), []);
 
   return (
     <View style={styles.container}>
@@ -48,24 +67,17 @@ export default function OrdersScreen() {
         keyExtractor={(f) => f.label}
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.filters}
-        renderItem={({ item }) => (
-          <TouchableOpacity
-            style={[styles.filterChip, filter === item.value && styles.filterActive]}
-            onPress={() => setFilter(item.value)}
-          >
-            <Text style={[styles.filterText, filter === item.value && styles.filterTextActive]}>{item.label}</Text>
-          </TouchableOpacity>
-        )}
+        renderItem={renderFilterChip}
         style={styles.filterList}
       />
 
       <FlatList
-        data={orders}
+        data={visibleOrders}
         keyExtractor={(o) => o.id}
-        renderItem={({ item }) => <OrderCard order={item} role="customer" />}
+        renderItem={renderOrderCard}
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} />}
+        refreshControl={refreshControl}
         ListEmptyComponent={
           <View style={styles.empty}>
             <Ionicons name="receipt-outline" size={48} color={Colors.gray} />

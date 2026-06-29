@@ -1,5 +1,6 @@
 import React from 'react';
-import { View, Text, Image, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { Product } from '../types';
 import { useCartStore } from '../stores/cartStore';
@@ -40,29 +41,27 @@ export default function ProductCard({ product, shopIsOpen = true }: ProductCardP
         </View>
         <View style={styles.actions}>
           {qty === 0 ? (
-            <TouchableOpacity
-              style={[styles.addBtn, !shopIsOpen && styles.addBtnDisabled]}
+            <Pressable
+              style={({ pressed }) => [styles.addBtn, !shopIsOpen && styles.addBtnDisabled, pressed && shopIsOpen && { opacity: 0.8 }]}
               onPress={() => shopIsOpen && addItem(product)}
-              activeOpacity={shopIsOpen ? 0.8 : 1}
             >
               <Text style={[styles.addBtnText, !shopIsOpen && styles.addBtnTextDisabled]}>
                 {shopIsOpen ? 'Add' : 'Unavailable'}
               </Text>
               {shopIsOpen && <Ionicons name="add" size={16} color={Colors.primary} />}
-            </TouchableOpacity>
+            </Pressable>
           ) : (
             <View style={styles.qtyRow}>
-              <TouchableOpacity style={styles.qtyBtn} onPress={() => updateQuantity(product.id, qty - 1)}>
+              <Pressable style={({ pressed }) => [styles.qtyBtn, pressed && { opacity: 0.7 }]} onPress={() => updateQuantity(product.id, qty - 1)}>
                 <Ionicons name="remove" size={16} color={Colors.primary} />
-              </TouchableOpacity>
+              </Pressable>
               <Text style={styles.qty}>{qty}</Text>
-              <TouchableOpacity
-                style={styles.qtyBtn}
+              <Pressable
+                style={({ pressed }) => [styles.qtyBtn, pressed && shopIsOpen && { opacity: 0.8 }]}
                 onPress={() => shopIsOpen && updateQuantity(product.id, qty + 1)}
-                activeOpacity={shopIsOpen ? 0.8 : 1}
               >
                 <Ionicons name="add" size={16} color={shopIsOpen ? Colors.primary : Colors.gray} />
-              </TouchableOpacity>
+              </Pressable>
             </View>
           )}
         </View>
@@ -76,11 +75,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface,
     borderRadius: 10,
     width: '48%',
-    shadowColor: Colors.black,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    elevation: 2,
+    boxShadow: '0px 1px 4px rgba(0,0,0,0.06)',
     overflow: 'hidden',
   },
   image: { width: '100%', height: 110 },

@@ -4,14 +4,25 @@ from typing import Optional
 from bson import ObjectId
 from fastapi import APIRouter, Depends, HTTPException, Query
 
+import os
+import razorpay
+
 from app.database import get_db
 from app.dependencies import get_order_service, get_routing_service
 from app.interfaces.order import IOrderService
 from app.interfaces.routing import IRoutingService
 from app.middleware.auth import get_current_user, require_role
-from app.models.order import OrderCreate, OrderStatus
+from app.models.order import OrderCreate, OrderStatus, PaymentVerification
 
 router = APIRouter(prefix="/orders", tags=["orders"])
+
+RAZORPAY_KEY_ID = os.getenv("RAZORPAY_KEY_ID", "rzp_test_1DP5mmOlF5G5ag")
+RAZORPAY_KEY_SECRET = os.getenv("RAZORPAY_KEY_SECRET", "51GQY01l1R67484M0T8qgP4Q")
+
+try:
+    razorpay_client = razorpay.Client(auth=(RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET))
+except Exception:
+    razorpay_client = None
 
 
 @router.post("/preview")
@@ -67,11 +78,67 @@ async def place_order(
         "status": OrderStatus.PENDING,
         "delivery_partner_id": None,
         "notes": order_data.notes,
+        "payment_status": "pending",
         "created_at": datetime.utcnow(),
         "updated_at": datetime.utcnow(),
     }
     result = await db.orders.insert_one(doc)
-    return {"id": str(result.inserted_id), "total": doc["total"], "message": "Order placed successfully"}
+    order_id_str = str(result.inserted_id)
+
+    razorpay_order_id = None
+    if razorpay_client:
+        try:
+            rzp_order = razorpay_client.order.create({
+                "amount": int(doc["total"] * 100),
+                "currency": "INR",
+                "receipt": order_id_str,
+                "payment_capture": "1"
+            })
+            razorpay_order_id = rzp_order["id"]
+            await db.orders.update_one(
+                {"_id": result.inserted_id},
+                {"$set": {"razorpay_order_id": razorpay_order_id}}
+            )
+        except Exception as e:
+            print("Razorpay error:", e)
+
+    return {
+        "id": order_id_str,
+        "total": doc["total"],
+        "razorpay_order_id": razorpay_order_id,
+        "razorpay_key": RAZORPAY_KEY_ID,
+        "message": "Order placed successfully"
+    }
+
+@router.post("/{order_id}/verify-payment")
+async def verify_payment(
+    order_id: str,
+    payment_data: PaymentVerification,
+    current_user=Depends(require_role("customer")),
+    db=Depends(get_db)
+):
+    if not razorpay_client:
+        raise HTTPException(status_code=500, detail="Razorpay is not configured")
+
+    try:
+        razorpay_client.utility.verify_payment_signature({
+            'razorpay_order_id': payment_data.razorpay_order_id,
+            'razorpay_payment_id': payment_data.razorpay_payment_id,
+            'razorpay_signature': payment_data.razorpay_signature
+        })
+    except razorpay.errors.SignatureVerificationError:
+        raise HTTPException(status_code=400, detail="Payment verification failed")
+
+    await db.orders.update_one(
+        {"_id": ObjectId(order_id)},
+        {"$set": {
+            "payment_status": "paid",
+            "razorpay_payment_id": payment_data.razorpay_payment_id,
+            "updated_at": datetime.utcnow()
+        }}
+    )
+
+    return {"message": "Payment verified successfully"}
 
 
 @router.get("/my")

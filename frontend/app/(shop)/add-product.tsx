@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, KeyboardAvoidingView, Platform, Image, ActivityIndicator } from 'react-native';
+import React, { useReducer, useRef, useCallback } from 'react';
+import { View, Text, FlatList, ScrollView, StyleSheet, Pressable, KeyboardAvoidingView, Platform, ActivityIndicator } from 'react-native';
+import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -13,19 +14,47 @@ import Colors from '../../constants/colors';
 
 const UNITS = ['kg', 'g', 'L', 'ml', 'pcs', 'dozen', 'packet', 'bottle'];
 
+interface AddProductState {
+  name: string; category: string; price: string; mrp: string; unit: string;
+  stock: string; brand: string; description: string;
+  imageUri: string | null; imageUploading: boolean; loading: boolean;
+}
+type AddProductAction =
+  | { type: 'set_name'; value: string }
+  | { type: 'set_category'; value: string }
+  | { type: 'set_price'; value: string }
+  | { type: 'set_mrp'; value: string }
+  | { type: 'set_unit'; value: string }
+  | { type: 'set_stock'; value: string }
+  | { type: 'set_brand'; value: string }
+  | { type: 'set_description'; value: string }
+  | { type: 'set_image_uri'; value: string | null }
+  | { type: 'set_image_uploading'; value: boolean }
+  | { type: 'set_loading'; value: boolean };
+function addProductReducer(state: AddProductState, action: AddProductAction): AddProductState {
+  switch (action.type) {
+    case 'set_name': return { ...state, name: action.value };
+    case 'set_category': return { ...state, category: action.value };
+    case 'set_price': return { ...state, price: action.value };
+    case 'set_mrp': return { ...state, mrp: action.value };
+    case 'set_unit': return { ...state, unit: action.value };
+    case 'set_stock': return { ...state, stock: action.value };
+    case 'set_brand': return { ...state, brand: action.value };
+    case 'set_description': return { ...state, description: action.value };
+    case 'set_image_uri': return { ...state, imageUri: action.value };
+    case 'set_image_uploading': return { ...state, imageUploading: action.value };
+    case 'set_loading': return { ...state, loading: action.value };
+  }
+}
+
 export default function AddProductScreen() {
-  const [name, setName] = useState('');
-  const [category, setCategory] = useState(PRODUCT_CATEGORIES[0]);
-  const [price, setPrice] = useState('');
-  const [mrp, setMrp] = useState('');
-  const [unit, setUnit] = useState(UNITS[0]);
-  const [stock, setStock] = useState('');
-  const [brand, setBrand] = useState('');
-  const [description, setDescription] = useState('');
-  const [imageUri, setImageUri] = useState<string | null>(null);
-  const [imageUrl, setImageUrl] = useState<string | null>(null);
-  const [imageUploading, setImageUploading] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [state, dispatch] = useReducer(addProductReducer, {
+    name: '', category: PRODUCT_CATEGORIES[0], price: '', mrp: '',
+    unit: UNITS[0], stock: '', brand: '', description: '',
+    imageUri: null, imageUploading: false, loading: false,
+  });
+  const { name, category, price, mrp, unit, stock, brand, description, imageUri, imageUploading, loading } = state;
+  const imageUrlRef = useRef<string | null>(null);
 
   async function pickImage() {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -41,17 +70,17 @@ export default function AddProductScreen() {
     });
     if (result.canceled) return;
     const uri = result.assets[0].uri;
-    setImageUri(uri);
-    setImageUploading(true);
+    dispatch({ type: 'set_image_uri', value: uri });
+    dispatch({ type: 'set_image_uploading', value: true });
     try {
       const url = await uploadService.uploadImage(uri);
-      setImageUrl(url);
+      imageUrlRef.current = url;
     } catch {
       Toast.show({ type: 'error', text1: 'Failed to upload image' });
-      setImageUri(null);
-      setImageUrl(null);
+      dispatch({ type: 'set_image_uri', value: null });
+      imageUrlRef.current = null;
     } finally {
-      setImageUploading(false);
+      dispatch({ type: 'set_image_uploading', value: false });
     }
   }
 
@@ -60,7 +89,7 @@ export default function AddProductScreen() {
       Toast.show({ type: 'error', text1: 'Fill in all required fields' });
       return;
     }
-    setLoading(true);
+    dispatch({ type: 'set_loading', value: true });
     try {
       await productService.addProduct({
         name,
@@ -71,30 +100,36 @@ export default function AddProductScreen() {
         quantity_in_stock: parseInt(stock, 10),
         brand: brand || undefined,
         description: description || undefined,
-        image_url: imageUrl || undefined,
+        image_url: imageUrlRef.current || undefined,
       });
       Toast.show({ type: 'success', text1: 'Product added!' });
       router.back();
     } catch (err: any) {
       Toast.show({ type: 'error', text1: err.response?.data?.detail ?? 'Failed to add product' });
     } finally {
-      setLoading(false);
+      dispatch({ type: 'set_loading', value: false });
     }
   }
+
+  const renderCategoryChip = useCallback(({ item: c }: { item: string }) => (
+    <Pressable style={[styles.chip, category === c && styles.chipActive]} onPress={() => dispatch({ type: 'set_category', value: c })}>
+      <Text style={[styles.chipText, category === c && styles.chipTextActive]}>{c}</Text>
+    </Pressable>
+  ), [category]);
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <View style={styles.headerBar}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+        <Pressable onPress={() => router.back()} style={styles.backBtn}>
           <Ionicons name="arrow-back" size={22} color={Colors.text} />
-        </TouchableOpacity>
+        </Pressable>
         <Text style={styles.headerTitle}>Add Product</Text>
       </View>
 
       <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         {/* Product Image */}
         <Text style={styles.label}>Product Image</Text>
-        <TouchableOpacity style={styles.imagePicker} onPress={pickImage} disabled={imageUploading} activeOpacity={0.8}>
+        <Pressable style={({ pressed }) => [styles.imagePicker, pressed && !imageUploading && { opacity: 0.8 }]} onPress={pickImage} disabled={imageUploading}>
           {imageUri ? (
             <>
               <Image source={{ uri: imageUri }} style={styles.imagePreview} />
@@ -117,41 +152,43 @@ export default function AddProductScreen() {
               <Text style={styles.imageEmptyText}>Add Photo</Text>
             </View>
           )}
-        </TouchableOpacity>
+        </Pressable>
 
-        <Input label="Product Name *" placeholder="e.g. Tata Salt 1kg" value={name} onChangeText={setName} />
-        <Input label="Brand" placeholder="e.g. Tata" value={brand} onChangeText={setBrand} />
-        <Input label="Description" placeholder="Optional description" value={description} onChangeText={setDescription} multiline />
+        <Input label="Product Name *" placeholder="e.g. Tata Salt 1kg" value={name} onChangeText={(v) => dispatch({ type: 'set_name', value: v })} />
+        <Input label="Brand" placeholder="e.g. Tata" value={brand} onChangeText={(v) => dispatch({ type: 'set_brand', value: v })} />
+        <Input label="Description" placeholder="Optional description" value={description} onChangeText={(v) => dispatch({ type: 'set_description', value: v })} multiline />
 
         <Text style={styles.label}>Category *</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipList} contentContainerStyle={styles.chips}>
-          {PRODUCT_CATEGORIES.map((c) => (
-            <TouchableOpacity key={c} style={[styles.chip, category === c && styles.chipActive]} onPress={() => setCategory(c)}>
-              <Text style={[styles.chipText, category === c && styles.chipTextActive]}>{c}</Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
+        <FlatList
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          data={PRODUCT_CATEGORIES}
+          keyExtractor={(c) => c}
+          renderItem={renderCategoryChip}
+          style={styles.chipList}
+          contentContainerStyle={styles.chips}
+        />
 
         <View style={styles.row}>
           <View style={styles.half}>
-            <Input label="Selling Price (₹) *" placeholder="0.00" value={price} onChangeText={setPrice} keyboardType="decimal-pad" />
+            <Input label="Selling Price (₹) *" placeholder="0.00" value={price} onChangeText={(v) => dispatch({ type: 'set_price', value: v })} keyboardType="decimal-pad" />
           </View>
           <View style={styles.half}>
-            <Input label="MRP (₹) *" placeholder="0.00" value={mrp} onChangeText={setMrp} keyboardType="decimal-pad" />
+            <Input label="MRP (₹) *" placeholder="0.00" value={mrp} onChangeText={(v) => dispatch({ type: 'set_mrp', value: v })} keyboardType="decimal-pad" />
           </View>
         </View>
 
         <View style={styles.row}>
           <View style={styles.half}>
-            <Input label="Stock Quantity *" placeholder="0" value={stock} onChangeText={setStock} keyboardType="numeric" />
+            <Input label="Stock Quantity *" placeholder="0" value={stock} onChangeText={(v) => dispatch({ type: 'set_stock', value: v })} keyboardType="numeric" />
           </View>
           <View style={styles.half}>
             <Text style={styles.label}>Unit *</Text>
             <View style={styles.unitGrid}>
               {UNITS.map((u) => (
-                <TouchableOpacity key={u} style={[styles.unitChip, unit === u && styles.unitChipActive]} onPress={() => setUnit(u)}>
+                <Pressable key={u} style={[styles.unitChip, unit === u && styles.unitChipActive]} onPress={() => dispatch({ type: 'set_unit', value: u })}>
                   <Text style={[styles.unitText, unit === u && styles.unitTextActive]}>{u}</Text>
-                </TouchableOpacity>
+                </Pressable>
               ))}
             </View>
           </View>

@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useAuthStore } from '../../stores/authStore';
@@ -44,18 +44,18 @@ export default function CustomerProfile() {
 
       <View style={styles.menu}>
         {menuItems.map((item) => (
-          <TouchableOpacity key={item.label} style={styles.menuItem} onPress={item.onPress} activeOpacity={0.7}>
+          <Pressable key={item.label} style={({ pressed }) => [styles.menuItem, pressed && { opacity: 0.7 }]} onPress={item.onPress}>
             <Ionicons name={item.icon as any} size={22} color={Colors.primary} />
             <Text style={styles.menuLabel}>{item.label}</Text>
             <Ionicons name="chevron-forward" size={18} color={Colors.gray} />
-          </TouchableOpacity>
+          </Pressable>
         ))}
       </View>
 
-      <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
+      <Pressable style={styles.logoutBtn} onPress={handleLogout}>
         <Ionicons name="log-out-outline" size={20} color={Colors.error} />
         <Text style={styles.logoutText}>Logout</Text>
-      </TouchableOpacity>
+      </Pressable>
     </ScrollView>
   );
 }

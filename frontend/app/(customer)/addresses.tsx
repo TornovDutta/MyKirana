@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useReducer, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity,
+  View, Text, FlatList, StyleSheet, Pressable,
   Modal, KeyboardAvoidingView, Platform, Alert, ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -16,13 +16,43 @@ const LABELS = ['Home', 'Work', 'Other'];
 
 const emptyForm = { label: 'Home', address: '', city: '', pincode: '' };
 
+interface AddressesState {
+  addresses: SavedAddress[];
+  loading: boolean;
+  modalVisible: boolean;
+  saving: boolean;
+  editing: SavedAddress | null;
+  form: typeof emptyForm;
+}
+type AddressesAction =
+  | { type: 'set_addresses'; value: SavedAddress[] }
+  | { type: 'set_loading'; value: boolean }
+  | { type: 'open_add' }
+  | { type: 'open_edit'; value: SavedAddress }
+  | { type: 'close_modal' }
+  | { type: 'set_saving'; value: boolean }
+  | { type: 'patch_form'; value: Partial<typeof emptyForm> }
+  | { type: 'address_updated'; id: string; patch: typeof emptyForm }
+  | { type: 'address_added'; value: SavedAddress }
+  | { type: 'address_removed'; value: string };
+function addressesReducer(state: AddressesState, action: AddressesAction): AddressesState {
+  switch (action.type) {
+    case 'set_addresses': return { ...state, addresses: action.value };
+    case 'set_loading': return { ...state, loading: action.value };
+    case 'open_add': return { ...state, editing: null, form: emptyForm, modalVisible: true };
+    case 'open_edit': return { ...state, editing: action.value, form: { label: action.value.label, address: action.value.address, city: action.value.city, pincode: action.value.pincode }, modalVisible: true };
+    case 'close_modal': return { ...state, modalVisible: false };
+    case 'set_saving': return { ...state, saving: action.value };
+    case 'patch_form': return { ...state, form: { ...state.form, ...action.value } };
+    case 'address_updated': return { ...state, addresses: state.addresses.map((a) => a.id === action.id ? { ...a, ...action.patch } : a), modalVisible: false };
+    case 'address_added': return { ...state, addresses: [...state.addresses, action.value], modalVisible: false };
+    case 'address_removed': return { ...state, addresses: state.addresses.filter((a) => a.id !== action.value) };
+  }
+}
+
 export default function AddressesScreen() {
-  const [addresses, setAddresses] = useState<SavedAddress[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [modalVisible, setModalVisible] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [editing, setEditing] = useState<SavedAddress | null>(null);
-  const [form, setForm] = useState(emptyForm);
+  const [state, dispatch] = useReducer(addressesReducer, { addresses: [], loading: true, modalVisible: false, saving: false, editing: null, form: emptyForm });
+  const { addresses, loading, modalVisible, saving, editing, form } = state;
 
   useEffect(() => {
     fetchAddresses();
@@ -31,51 +61,46 @@ export default function AddressesScreen() {
   async function fetchAddresses() {
     try {
       const data = await addressService.list();
-      setAddresses(data);
+      dispatch({ type: 'set_addresses', value: data });
     } catch {
       Toast.show({ type: 'error', text1: 'Failed to load addresses' });
     } finally {
-      setLoading(false);
+      dispatch({ type: 'set_loading', value: false });
     }
   }
 
-  function openAdd() {
-    setEditing(null);
-    setForm(emptyForm);
-    setModalVisible(true);
-  }
+  const openAdd = useCallback(() => {
+    dispatch({ type: 'open_add' });
+  }, []);
 
-  function openEdit(addr: SavedAddress) {
-    setEditing(addr);
-    setForm({ label: addr.label, address: addr.address, city: addr.city, pincode: addr.pincode });
-    setModalVisible(true);
-  }
+  const openEdit = useCallback((addr: SavedAddress) => {
+    dispatch({ type: 'open_edit', value: addr });
+  }, []);
 
   async function handleSave() {
     if (!form.address || !form.city || !form.pincode) {
       Toast.show({ type: 'error', text1: 'Please fill all fields' });
       return;
     }
-    setSaving(true);
+    dispatch({ type: 'set_saving', value: true });
     try {
       if (editing) {
         await addressService.update(editing.id, form);
-        setAddresses((prev) => prev.map((a) => (a.id === editing.id ? { ...a, ...form } : a)));
+        dispatch({ type: 'address_updated', id: editing.id, patch: form });
         Toast.show({ type: 'success', text1: 'Address updated' });
       } else {
         const created = await addressService.add(form);
-        setAddresses((prev) => [...prev, created]);
+        dispatch({ type: 'address_added', value: created });
         Toast.show({ type: 'success', text1: 'Address saved' });
       }
-      setModalVisible(false);
     } catch {
       Toast.show({ type: 'error', text1: 'Failed to save address' });
     } finally {
-      setSaving(false);
+      dispatch({ type: 'set_saving', value: false });
     }
   }
 
-  function handleDelete(addr: SavedAddress) {
+  const handleDelete = useCallback((addr: SavedAddress) => {
     Alert.alert('Delete Address', `Remove "${addr.label}" address?`, [
       { text: 'Cancel', style: 'cancel' },
       {
@@ -83,7 +108,7 @@ export default function AddressesScreen() {
         onPress: async () => {
           try {
             await addressService.remove(addr.id);
-            setAddresses((prev) => prev.filter((a) => a.id !== addr.id));
+            dispatch({ type: 'address_removed', value: addr.id });
             Toast.show({ type: 'success', text1: 'Address removed' });
           } catch {
             Toast.show({ type: 'error', text1: 'Failed to delete address' });
@@ -91,78 +116,84 @@ export default function AddressesScreen() {
         },
       },
     ]);
-  }
+  }, []);
+
+  const renderAddressCard = useCallback(({ item: addr }: { item: SavedAddress }) => (
+    <View style={styles.card}>
+      <View style={styles.cardLeft}>
+        <View style={styles.labelBadge}>
+          <Ionicons
+            name={addr.label === 'Home' ? 'home' : addr.label === 'Work' ? 'briefcase' : 'location'}
+            size={14}
+            color={Colors.primary}
+          />
+          <Text style={styles.labelText}>{addr.label}</Text>
+        </View>
+        <Text style={styles.addressLine}>{addr.address}</Text>
+        <Text style={styles.cityLine}>{addr.city} - {addr.pincode}</Text>
+      </View>
+      <View style={styles.cardActions}>
+        <Pressable onPress={() => openEdit(addr)} style={styles.actionBtn}>
+          <Ionicons name="pencil-outline" size={19} color={Colors.textSecondary} />
+        </Pressable>
+        <Pressable onPress={() => handleDelete(addr)} style={styles.actionBtn}>
+          <Ionicons name="trash-outline" size={19} color={Colors.error} />
+        </Pressable>
+      </View>
+    </View>
+  ), [openEdit, handleDelete]);
 
   return (
     <View style={styles.container}>
       <View style={styles.headerBar}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+        <Pressable onPress={() => router.back()} style={styles.backBtn}>
           <Ionicons name="arrow-back" size={22} color={Colors.text} />
-        </TouchableOpacity>
+        </Pressable>
         <Text style={styles.headerTitle}>Saved Addresses</Text>
-        <TouchableOpacity onPress={openAdd} style={styles.addBtn}>
+        <Pressable onPress={openAdd} style={styles.addBtn}>
           <Ionicons name="add" size={26} color={Colors.primary} />
-        </TouchableOpacity>
+        </Pressable>
       </View>
 
       {loading ? (
         <ActivityIndicator style={styles.loader} color={Colors.primary} size="large" />
       ) : (
-        <ScrollView contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}>
-          {addresses.length === 0 && (
+        <FlatList
+          data={addresses}
+          keyExtractor={(addr) => addr.id}
+          renderItem={renderAddressCard}
+          contentContainerStyle={styles.list}
+          showsVerticalScrollIndicator={false}
+          ListEmptyComponent={
             <View style={styles.empty}>
               <Ionicons name="location-outline" size={56} color={Colors.border} />
               <Text style={styles.emptyText}>No saved addresses yet</Text>
               <Text style={styles.emptySubtext}>Tap + to add a delivery address</Text>
             </View>
-          )}
-          {addresses.map((addr) => (
-            <View key={addr.id} style={styles.card}>
-              <View style={styles.cardLeft}>
-                <View style={styles.labelBadge}>
-                  <Ionicons
-                    name={addr.label === 'Home' ? 'home' : addr.label === 'Work' ? 'briefcase' : 'location'}
-                    size={14}
-                    color={Colors.primary}
-                  />
-                  <Text style={styles.labelText}>{addr.label}</Text>
-                </View>
-                <Text style={styles.addressLine}>{addr.address}</Text>
-                <Text style={styles.cityLine}>{addr.city} - {addr.pincode}</Text>
-              </View>
-              <View style={styles.cardActions}>
-                <TouchableOpacity onPress={() => openEdit(addr)} style={styles.actionBtn}>
-                  <Ionicons name="pencil-outline" size={19} color={Colors.textSecondary} />
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => handleDelete(addr)} style={styles.actionBtn}>
-                  <Ionicons name="trash-outline" size={19} color={Colors.error} />
-                </TouchableOpacity>
-              </View>
-            </View>
-          ))}
-        </ScrollView>
+          }
+        />
       )}
 
-      <Modal visible={modalVisible} animationType="slide" transparent onRequestClose={() => setModalVisible(false)}>
+      <Modal visible={modalVisible} animationType="slide" transparent onRequestClose={() => dispatch({ type: 'close_modal' })}>
         <KeyboardAvoidingView style={styles.modalOverlay} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <View style={styles.modalSheet}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>{editing ? 'Edit Address' : 'New Address'}</Text>
-              <TouchableOpacity onPress={() => setModalVisible(false)}>
+              <Pressable onPress={() => dispatch({ type: 'close_modal' })}>
                 <Ionicons name="close" size={24} color={Colors.text} />
-              </TouchableOpacity>
+              </Pressable>
             </View>
 
             <Text style={styles.fieldLabel}>Label</Text>
             <View style={styles.labelRow}>
               {LABELS.map((l) => (
-                <TouchableOpacity
+                <Pressable
                   key={l}
                   style={[styles.labelChip, form.label === l && styles.labelChipActive]}
-                  onPress={() => setForm((f) => ({ ...f, label: l }))}
+                  onPress={() => dispatch({ type: 'patch_form', value: { label: l } })}
                 >
                   <Text style={[styles.labelChipText, form.label === l && styles.labelChipTextActive]}>{l}</Text>
-                </TouchableOpacity>
+                </Pressable>
               ))}
             </View>
 
@@ -170,21 +201,21 @@ export default function AddressesScreen() {
               label="Street Address"
               placeholder="House no, street, area"
               value={form.address}
-              onChangeText={(v) => setForm((f) => ({ ...f, address: v }))}
+              onChangeText={(v) => dispatch({ type: 'patch_form', value: { address: v } })}
               leftIcon="home-outline"
             />
             <Input
               label="City"
               placeholder="City"
               value={form.city}
-              onChangeText={(v) => setForm((f) => ({ ...f, city: v }))}
+              onChangeText={(v) => dispatch({ type: 'patch_form', value: { city: v } })}
               leftIcon="business-outline"
             />
             <Input
               label="Pincode"
               placeholder="6-digit pincode"
               value={form.pincode}
-              onChangeText={(v) => setForm((f) => ({ ...f, pincode: v }))}
+              onChangeText={(v) => dispatch({ type: 'patch_form', value: { pincode: v } })}
               keyboardType="numeric"
               maxLength={6}
               leftIcon="location-outline"

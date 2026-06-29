@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, TextInput, Text, TouchableOpacity, StyleSheet, TextInputProps } from 'react-native';
+import { View, TextInput, Text, Pressable, StyleSheet, TextInputProps } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Colors from '../../constants/colors';
 
@@ -28,13 +28,13 @@ export default function Input({ label, error, leftIcon, rightIcon, onRightIconPr
           placeholderTextColor={Colors.textLight}
         />
         {isPassword ? (
-          <TouchableOpacity onPress={() => setSecure(!secure)} style={styles.rightIcon}>
+          <Pressable onPress={() => setSecure(!secure)} style={({ pressed }) => [styles.rightIcon, pressed && { opacity: 0.7 }]}>
             <Ionicons name={secure ? 'eye-off' : 'eye'} size={20} color={Colors.gray} />
-          </TouchableOpacity>
+          </Pressable>
         ) : rightIcon ? (
-          <TouchableOpacity onPress={onRightIconPress} style={styles.rightIcon}>
+          <Pressable onPress={onRightIconPress} style={({ pressed }) => [styles.rightIcon, pressed && { opacity: 0.7 }]}>
             <Ionicons name={rightIcon} size={20} color={Colors.gray} />
-          </TouchableOpacity>
+          </Pressable>
         ) : null}
       </View>
       {error && <Text style={styles.errorText}>{error}</Text>}

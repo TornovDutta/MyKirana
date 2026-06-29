@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useReducer, useEffect } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TextInput, Image,
-  TouchableOpacity, ActivityIndicator, KeyboardAvoidingView, Platform,
+  View, Text, StyleSheet, ScrollView, TextInput,
+  Pressable, ActivityIndicator, KeyboardAvoidingView, Platform,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
@@ -33,22 +34,33 @@ interface FormState {
   image_url: string | null;
 }
 
+interface RegisterShopState { form: FormState; bannerUri: string | null; bannerUploading: boolean; locLoading: boolean; submitting: boolean; }
+type RegisterShopAction =
+  | { type: 'patch_form'; value: Partial<FormState> }
+  | { type: 'set_banner_uri'; value: string | null }
+  | { type: 'set_banner_uploading'; value: boolean }
+  | { type: 'set_loc_loading'; value: boolean }
+  | { type: 'set_submitting'; value: boolean };
+function registerShopReducer(state: RegisterShopState, action: RegisterShopAction): RegisterShopState {
+  switch (action.type) {
+    case 'patch_form': return { ...state, form: { ...state.form, ...action.value } };
+    case 'set_banner_uri': return { ...state, bannerUri: action.value };
+    case 'set_banner_uploading': return { ...state, bannerUploading: action.value };
+    case 'set_loc_loading': return { ...state, locLoading: action.value };
+    case 'set_submitting': return { ...state, submitting: action.value };
+  }
+}
+
+const FORM_INIT: FormState = { name: '', description: '', phone: '', address: '', city: '', pincode: '', delivery_radius_km: '5', opening_time: '09:00', closing_time: '21:00', categories: [], lat: null, lng: null, image_url: null };
+
 export default function RegisterShop() {
-  const [form, setForm] = useState<FormState>({
-    name: '', description: '', phone: '', address: '',
-    city: '', pincode: '', delivery_radius_km: '5',
-    opening_time: '09:00', closing_time: '21:00',
-    categories: [], lat: null, lng: null, image_url: null,
-  });
-  const [bannerUri, setBannerUri] = useState<string | null>(null);
-  const [bannerUploading, setBannerUploading] = useState(false);
-  const [locLoading, setLocLoading] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
+  const [state, dispatch] = useReducer(registerShopReducer, { form: FORM_INIT, bannerUri: null, bannerUploading: false, locLoading: false, submitting: false });
+  const { form, bannerUri, bannerUploading, locLoading, submitting } = state;
 
   useEffect(() => { detectLocation(); }, []);
 
   async function detectLocation() {
-    setLocLoading(true);
+    dispatch({ type: 'set_loc_loading', value: true });
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
@@ -56,11 +68,11 @@ export default function RegisterShop() {
         return;
       }
       const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-      setForm((f) => ({ ...f, lat: loc.coords.latitude, lng: loc.coords.longitude }));
+      dispatch({ type: 'patch_form', value: { lat: loc.coords.latitude, lng: loc.coords.longitude } });
     } catch {
       Toast.show({ type: 'error', text1: 'Could not get location', text2: 'Please enable location services and try again.' });
     } finally {
-      setLocLoading(false);
+      dispatch({ type: 'set_loc_loading', value: false });
     }
   }
 
@@ -78,30 +90,28 @@ export default function RegisterShop() {
     });
     if (result.canceled) return;
     const uri = result.assets[0].uri;
-    setBannerUri(uri);
-    setBannerUploading(true);
+    dispatch({ type: 'set_banner_uri', value: uri });
+    dispatch({ type: 'set_banner_uploading', value: true });
     try {
       const url = await uploadService.uploadImage(uri);
-      setForm((f) => ({ ...f, image_url: url }));
+      dispatch({ type: 'patch_form', value: { image_url: url } });
     } catch {
       Toast.show({ type: 'error', text1: 'Failed to upload banner' });
-      setBannerUri(null);
+      dispatch({ type: 'set_banner_uri', value: null });
     } finally {
-      setBannerUploading(false);
+      dispatch({ type: 'set_banner_uploading', value: false });
     }
   }
 
   function toggleCategory(cat: string) {
-    setForm((f) => ({
-      ...f,
-      categories: f.categories.includes(cat)
-        ? f.categories.filter((c) => c !== cat)
-        : [...f.categories, cat],
-    }));
+    const newCategories = form.categories.includes(cat)
+      ? form.categories.filter((c) => c !== cat)
+      : [...form.categories, cat];
+    dispatch({ type: 'patch_form', value: { categories: newCategories } });
   }
 
   function set(field: keyof FormState) {
-    return (val: string) => setForm((f) => ({ ...f, [field]: val }));
+    return (val: string) => dispatch({ type: 'patch_form', value: { [field]: val } as Partial<FormState> });
   }
 
   async function handleSubmit() {
@@ -116,7 +126,7 @@ export default function RegisterShop() {
       return;
     }
 
-    setSubmitting(true);
+    dispatch({ type: 'set_submitting', value: true });
     try {
       await shopService.createShop({
         name: name.trim(),
@@ -138,7 +148,7 @@ export default function RegisterShop() {
       const msg = err?.response?.data?.detail ?? 'Registration failed. Try again.';
       Toast.show({ type: 'error', text1: 'Error', text2: msg });
     } finally {
-      setSubmitting(false);
+      dispatch({ type: 'set_submitting', value: false });
     }
   }
 
@@ -146,16 +156,16 @@ export default function RegisterShop() {
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView style={styles.container} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.back}>
+          <Pressable onPress={() => router.back()} style={styles.back}>
             <Ionicons name="arrow-back" size={22} color={Colors.white} />
-          </TouchableOpacity>
+          </Pressable>
           <Text style={styles.headerTitle}>Register Your Shop</Text>
         </View>
 
         <View style={styles.body}>
           {/* Shop Banner */}
           <Text style={styles.sectionTitle}>Shop Banner</Text>
-          <TouchableOpacity style={styles.bannerPicker} onPress={pickBanner} disabled={bannerUploading} activeOpacity={0.8}>
+          <Pressable style={({ pressed }) => [styles.bannerPicker, pressed && !bannerUploading && { opacity: 0.8 }]} onPress={pickBanner} disabled={bannerUploading}>
             {bannerUri ? (
               <>
                 <Image source={{ uri: bannerUri }} style={styles.bannerPreview} />
@@ -179,7 +189,7 @@ export default function RegisterShop() {
                 <Text style={styles.bannerHint}>Recommended: 16:9, under 5 MB</Text>
               </View>
             )}
-          </TouchableOpacity>
+          </Pressable>
 
           {/* Basic Info */}
           <Text style={styles.sectionTitle}>Basic Information</Text>
@@ -207,11 +217,11 @@ export default function RegisterShop() {
             ) : (
               <Text style={styles.locMissing}>Location not set</Text>
             )}
-            <TouchableOpacity style={styles.locBtn} onPress={detectLocation} disabled={locLoading}>
+            <Pressable style={styles.locBtn} onPress={detectLocation} disabled={locLoading}>
               {locLoading
                 ? <ActivityIndicator size="small" color={Colors.primary} />
                 : <><Ionicons name="navigate-outline" size={16} color={Colors.primary} /><Text style={styles.locBtnText}>Detect Location</Text></>}
-            </TouchableOpacity>
+            </Pressable>
           </View>
 
           {/* Delivery & Hours */}
@@ -234,23 +244,23 @@ export default function RegisterShop() {
             {CATEGORIES.map((cat) => {
               const selected = form.categories.includes(cat);
               return (
-                <TouchableOpacity
+                <Pressable
                   key={cat}
                   style={[styles.chip, selected && styles.chipSelected]}
                   onPress={() => toggleCategory(cat)}
                 >
                   <Text style={[styles.chipText, selected && styles.chipTextSelected]}>{cat}</Text>
-                </TouchableOpacity>
+                </Pressable>
               );
             })}
           </View>
 
           {/* Submit */}
-          <TouchableOpacity style={styles.submitBtn} onPress={handleSubmit} disabled={submitting}>
+          <Pressable style={styles.submitBtn} onPress={handleSubmit} disabled={submitting}>
             {submitting
               ? <ActivityIndicator color={Colors.white} />
               : <Text style={styles.submitText}>Register Shop</Text>}
-          </TouchableOpacity>
+          </Pressable>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>

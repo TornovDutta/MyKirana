@@ -1,6 +1,6 @@
 export const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:8000';
 
-export const DEFAULT_DELIVERY_RADIUS_KM = 10;
+const DEFAULT_DELIVERY_RADIUS_KM = 10;
 
 export const ORDER_STATUS_LABELS: Record<string, string> = {
   pending: 'Order Placed',

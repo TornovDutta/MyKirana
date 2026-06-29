@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ActivityIndicator, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Toast from 'react-native-toast-message';
 import { orderService } from '../../services/orders';
@@ -97,8 +97,8 @@ export default function ActiveDelivery() {
 
         <View style={styles.itemsList}>
           <Text style={styles.itemsTitle}>Items to Collect</Text>
-          {order.items.map((item, i) => (
-            <View key={i} style={styles.item}>
+          {order.items.map((item) => (
+            <View key={item.product_id} style={styles.item}>
               <Ionicons name="checkmark-circle-outline" size={18} color={Colors.primary} />
               <Text style={styles.itemText}>{item.product_name} × {item.quantity}</Text>
             </View>
@@ -110,7 +110,7 @@ export default function ActiveDelivery() {
           <Text style={styles.locationText}>{lat ? 'Tracking your location...' : 'Waiting for location...'}</Text>
         </View>
 
-        <TouchableOpacity style={styles.deliveredBtn} onPress={handleDelivered} disabled={marking}>
+        <Pressable style={styles.deliveredBtn} onPress={handleDelivered} disabled={marking}>
           {marking ? (
             <ActivityIndicator color={Colors.white} />
           ) : (
@@ -119,7 +119,7 @@ export default function ActiveDelivery() {
               <Text style={styles.deliveredBtnText}>Mark as Delivered</Text>
             </>
           )}
-        </TouchableOpacity>
+        </Pressable>
       </View>
     </View>
   );

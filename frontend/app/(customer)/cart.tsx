@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, Text, FlatList, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
+import React, { useState, useCallback } from 'react';
+import { View, Text, FlatList, StyleSheet, Pressable, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useCartStore } from '../../stores/cartStore';
@@ -8,7 +8,7 @@ import { orderService } from '../../services/orders';
 import CartItemComponent from '../../components/CartItem';
 import Button from '../../components/ui/Button';
 import Colors from '../../constants/colors';
-import { OrderPreview } from '../../types';
+import { OrderPreview, CartItem } from '../../types';
 
 export default function CartScreen() {
   const { items, getTotal, clearCart } = useCartStore();
@@ -35,6 +35,10 @@ export default function CartScreen() {
     }
   }
 
+  const renderCartItem = useCallback(({ item }: { item: CartItem }) => (
+    <CartItemComponent item={item} />
+  ), []);
+
   if (items.length === 0) {
     return (
       <View style={styles.empty}>
@@ -50,15 +54,15 @@ export default function CartScreen() {
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>Cart ({items.length} items)</Text>
-        <TouchableOpacity onPress={clearCart}>
+        <Pressable onPress={clearCart} style={({ pressed }) => [pressed && { opacity: 0.7 }]}>
           <Text style={styles.clearText}>Clear</Text>
-        </TouchableOpacity>
+        </Pressable>
       </View>
 
       <FlatList
         data={items}
         keyExtractor={(i) => i.product.id}
-        renderItem={({ item }) => <CartItemComponent item={item} />}
+        renderItem={renderCartItem}
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
       />
@@ -123,7 +127,7 @@ const styles = StyleSheet.create({
   title: { fontSize: 20, fontWeight: '700', color: Colors.text },
   clearText: { color: Colors.error, fontSize: 14, fontWeight: '600' },
   list: { padding: 16, paddingBottom: 20 },
-  footer: { backgroundColor: Colors.white, padding: 16, shadowColor: '#000', shadowOffset: { width: 0, height: -2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 8 },
+  footer: { backgroundColor: Colors.white, padding: 16, boxShadow: '0px -2px 8px rgba(0,0,0,0.06)' },
   previewBox: { backgroundColor: Colors.lightGray, borderRadius: 10, padding: 14, marginBottom: 12 },
   previewTitle: { fontSize: 14, fontWeight: '700', color: Colors.primary, marginBottom: 8 },
   previewRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 },

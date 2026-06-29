@@ -1,5 +1,5 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, FlatList, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, RefreshControl } from 'react-native';
+import React, { useEffect, useReducer, useCallback, useMemo } from 'react';
+import { View, Text, FlatList, TextInput, Pressable, StyleSheet, ActivityIndicator, RefreshControl } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { shopService } from '../../services/shops';
 import { useLocation } from '../../hooks/useLocation';
@@ -9,37 +9,77 @@ import { Shop } from '../../types';
 import { PRODUCT_CATEGORIES } from '../../constants/config';
 import Colors from '../../constants/colors';
 
+interface HomeState { shops: Shop[]; loading: boolean; refreshing: boolean; search: string; category: string | null; }
+type HomeAction =
+  | { type: 'set_shops'; value: Shop[] }
+  | { type: 'set_loading'; value: boolean }
+  | { type: 'set_refreshing'; value: boolean }
+  | { type: 'set_search'; value: string }
+  | { type: 'set_category'; value: string | null };
+function homeReducer(state: HomeState, action: HomeAction): HomeState {
+  switch (action.type) {
+    case 'set_shops': return { ...state, shops: action.value };
+    case 'set_loading': return { ...state, loading: action.value };
+    case 'set_refreshing': return { ...state, refreshing: action.value };
+    case 'set_search': return { ...state, search: action.value };
+    case 'set_category': return { ...state, category: action.value };
+  }
+}
+
 export default function CustomerHome() {
   const { user } = useAuthStore();
   const { lat, lng, loading: locLoading } = useLocation();
-  const [shops, setShops] = useState<Shop[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
-  const [search, setSearch] = useState('');
-  const [category, setCategory] = useState<string | null>(null);
+  const [state, dispatch] = useReducer(homeReducer, { shops: [], loading: false, refreshing: false, search: '', category: null });
+  const { shops, loading, refreshing, search, category } = state;
 
   const fetchShops = useCallback(async () => {
     if (!lat || !lng) return;
-    setLoading(true);
+    dispatch({ type: 'set_loading', value: true });
     try {
-      const data = await shopService.getNearby(lat, lng, 10, category ?? undefined);
-      setShops(data);
+      const data = await shopService.getNearby(lat, lng, 10);
+      dispatch({ type: 'set_shops', value: data });
     } catch {
       /* handled silently */
     } finally {
-      setLoading(false);
+      dispatch({ type: 'set_loading', value: false });
     }
-  }, [lat, lng, category]);
+  }, [lat, lng]);
 
   useEffect(() => { fetchShops(); }, [fetchShops]);
 
-  const onRefresh = async () => {
-    setRefreshing(true);
+  const onRefresh = useCallback(async () => {
+    dispatch({ type: 'set_refreshing', value: true });
     await fetchShops();
-    setRefreshing(false);
-  };
+    dispatch({ type: 'set_refreshing', value: false });
+  }, [fetchShops]);
 
-  const filtered = search ? shops.filter((s) => s.name.toLowerCase().includes(search.toLowerCase()) || s.address.toLowerCase().includes(search.toLowerCase())) : shops;
+  const refreshControl = useMemo(
+    () => <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} />,
+    [refreshing, onRefresh]
+  );
+
+  const categoryData = useMemo<(string | null)[]>(() => [null, ...PRODUCT_CATEGORIES], []);
+
+  const filtered = useMemo(() =>
+    shops.filter((s) =>
+      (!category || s.categories.includes(category)) &&
+      (!search || s.name.toLowerCase().includes(search.toLowerCase()) || s.address.toLowerCase().includes(search.toLowerCase()))
+    ),
+    [shops, category, search]
+  );
+
+  const renderCategoryChip = useCallback(({ item }: { item: string | null }) => (
+    <Pressable
+      style={({ pressed }) => [styles.catChip, category === item && styles.catChipActive, pressed && { opacity: 0.7 }]}
+      onPress={() => dispatch({ type: 'set_category', value: item })}
+    >
+      <Text style={[styles.catText, category === item && styles.catTextActive]}>{item ?? 'All'}</Text>
+    </Pressable>
+  ), [category]);
+
+  const renderShopCard = useCallback(({ item }: { item: Shop }) => (
+    <ShopCard shop={item} />
+  ), []);
 
   return (
     <View style={styles.container}>
@@ -59,26 +99,19 @@ export default function CustomerHome() {
           style={styles.searchInput}
           placeholder="Search shops..."
           value={search}
-          onChangeText={setSearch}
+          onChangeText={(v) => dispatch({ type: 'set_search', value: v })}
           placeholderTextColor={Colors.textLight}
         />
-        {search ? <TouchableOpacity onPress={() => setSearch('')}><Ionicons name="close-circle" size={18} color={Colors.gray} /></TouchableOpacity> : null}
+        {search ? <Pressable onPress={() => dispatch({ type: 'set_search', value: '' })}><Ionicons name="close-circle" size={18} color={Colors.gray} /></Pressable> : null}
       </View>
 
       <FlatList
         horizontal
-        data={[null, ...PRODUCT_CATEGORIES]}
+        data={categoryData}
         keyExtractor={(item) => item ?? '__all__'}
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.categories}
-        renderItem={({ item }) => (
-          <TouchableOpacity
-            style={[styles.catChip, category === item && styles.catChipActive]}
-            onPress={() => setCategory(item)}
-          >
-            <Text style={[styles.catText, category === item && styles.catTextActive]}>{item ?? 'All'}</Text>
-          </TouchableOpacity>
-        )}
+        renderItem={renderCategoryChip}
         style={styles.categoryList}
       />
 
@@ -90,10 +123,10 @@ export default function CustomerHome() {
         <FlatList
           data={filtered}
           keyExtractor={(s) => s.id}
-          renderItem={({ item }) => <ShopCard shop={item} />}
+          renderItem={renderShopCard}
           contentContainerStyle={styles.list}
           showsVerticalScrollIndicator={false}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} />}
+          refreshControl={refreshControl}
           ListEmptyComponent={
             loading ? (
               <View style={styles.center}><ActivityIndicator color={Colors.primary} /></View>
@@ -116,7 +149,7 @@ const styles = StyleSheet.create({
   greeting: { fontSize: 22, fontWeight: '700', color: Colors.white },
   locationRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
   locationText: { fontSize: 13, color: 'rgba(255,255,255,0.8)' },
-  searchBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.white, margin: 16, borderRadius: 10, paddingHorizontal: 12, gap: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 4, elevation: 2 },
+  searchBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.white, margin: 16, borderRadius: 10, paddingHorizontal: 12, gap: 8, boxShadow: '0px 1px 4px rgba(0,0,0,0.06)' },
   searchInput: { flex: 1, paddingVertical: 12, fontSize: 15, color: Colors.text },
   categoryList: { maxHeight: 44 },
   categories: { paddingHorizontal: 16, gap: 8, paddingBottom: 8 },

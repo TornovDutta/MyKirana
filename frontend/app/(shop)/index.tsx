@@ -1,5 +1,5 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, ActivityIndicator, Alert } from 'react-native';
+import React, { useEffect, useReducer, useCallback, useMemo } from 'react';
+import { View, Text, StyleSheet, ScrollView, Pressable, RefreshControl, ActivityIndicator, Alert } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import Toast from 'react-native-toast-message';
@@ -11,13 +11,29 @@ import Card from '../../components/ui/Card';
 import { Shop, Order } from '../../types';
 import Colors from '../../constants/colors';
 
+interface ShopDashState { shop: Shop | null; orders: Order[]; loading: boolean; refreshing: boolean; toggling: boolean; }
+type ShopDashAction =
+  | { type: 'set_shop'; value: Shop | null }
+  | { type: 'set_orders'; value: Order[] }
+  | { type: 'set_loading'; value: boolean }
+  | { type: 'set_refreshing'; value: boolean }
+  | { type: 'set_toggling'; value: boolean }
+  | { type: 'toggle_shop_open' };
+function shopDashReducer(state: ShopDashState, action: ShopDashAction): ShopDashState {
+  switch (action.type) {
+    case 'set_shop': return { ...state, shop: action.value };
+    case 'set_orders': return { ...state, orders: action.value };
+    case 'set_loading': return { ...state, loading: action.value };
+    case 'set_refreshing': return { ...state, refreshing: action.value };
+    case 'set_toggling': return { ...state, toggling: action.value };
+    case 'toggle_shop_open': return { ...state, shop: state.shop ? { ...state.shop, is_open: !state.shop.is_open } : null };
+  }
+}
+
 export default function ShopDashboard() {
   const { user } = useAuthStore();
-  const [shop, setShop] = useState<Shop | null>(null);
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [toggling, setToggling] = useState(false);
+  const [state, dispatch] = useReducer(shopDashReducer, { shop: null, orders: [], loading: true, refreshing: false, toggling: false });
+  const { shop, orders, loading, refreshing, toggling } = state;
 
   const fetchData = useCallback(async () => {
     try {
@@ -25,28 +41,36 @@ export default function ShopDashboard() {
         shopService.getMyShop().catch(() => null),
         orderService.getMyOrders(),
       ]);
-      setShop(shopData);
-      setOrders(ordersData);
+      dispatch({ type: 'set_shop', value: shopData });
+      dispatch({ type: 'set_orders', value: ordersData });
     } finally {
-      setLoading(false);
+      dispatch({ type: 'set_loading', value: false });
     }
   }, []);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  const onRefresh = async () => { setRefreshing(true); await fetchData(); setRefreshing(false); };
+  const onRefresh = useCallback(
+    async () => { dispatch({ type: 'set_refreshing', value: true }); await fetchData(); dispatch({ type: 'set_refreshing', value: false }); },
+    [fetchData]
+  );
+
+  const refreshControl = useMemo(
+    () => <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} />,
+    [refreshing, onRefresh]
+  );
 
   async function performToggle() {
     if (!shop || toggling) return;
-    setToggling(true);
+    dispatch({ type: 'set_toggling', value: true });
     try {
       await shopService.updateShop({ is_open: !shop.is_open });
-      setShop((s) => s ? { ...s, is_open: !s.is_open } : s);
+      dispatch({ type: 'toggle_shop_open' });
       Toast.show({ type: 'success', text1: shop.is_open ? 'Shop is now Closed' : 'Shop is now Open' });
     } catch {
       Toast.show({ type: 'error', text1: 'Failed to update shop status' });
     } finally {
-      setToggling(false);
+      dispatch({ type: 'set_toggling', value: false });
     }
   }
 
@@ -74,29 +98,25 @@ export default function ShopDashboard() {
   const todayRevenue = todaysOrders.filter((o) => o.status === 'delivered').reduce((s, o) => s + o.total, 0);
   const pendingCount = orders.filter((o) => ['pending', 'confirmed', 'preparing'].includes(o.status)).length;
 
-  if (loading) return <View style={styles.center}><ActivityIndicator size="large" color={Colors.primary} /></View>;
-
-  if (!shop) {
-    return (
-      <View style={styles.noShop}>
-        <Ionicons name="storefront-outline" size={72} color={Colors.gray} />
-        <Text style={styles.noShopTitle}>No shop registered</Text>
-        <Text style={styles.noShopSubtitle}>Register your shop to start selling</Text>
-        <TouchableOpacity style={styles.registerBtn} onPress={() => router.push('/(shop)/register-shop')}>
-          <Text style={styles.registerBtnText}>Register Shop</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
-
-  return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} />}>
+  return loading ? (
+    <View style={styles.center}><ActivityIndicator size="large" color={Colors.primary} /></View>
+  ) : !shop ? (
+    <View style={styles.noShop}>
+      <Ionicons name="storefront-outline" size={72} color={Colors.gray} />
+      <Text style={styles.noShopTitle}>No shop registered</Text>
+      <Text style={styles.noShopSubtitle}>Register your shop to start selling</Text>
+      <Pressable style={styles.registerBtn} onPress={() => router.push('/(shop)/register-shop')}>
+        <Text style={styles.registerBtnText}>Register Shop</Text>
+      </Pressable>
+    </View>
+  ) : (
+    <ScrollView style={styles.container} showsVerticalScrollIndicator={false} refreshControl={refreshControl}>
       <View style={styles.header}>
         <View>
           <Text style={styles.shopName}>{shop.name}</Text>
           <Text style={styles.greeting}>Good morning, {user?.name?.split(' ')[0]}</Text>
         </View>
-        <TouchableOpacity
+        <Pressable
           style={[styles.statusToggle, { backgroundColor: shop.is_open ? Colors.success + '20' : Colors.error + '20', opacity: toggling ? 0.6 : 1 }]}
           onPress={handleStatusToggle}
           disabled={toggling}
@@ -108,7 +128,7 @@ export default function ShopDashboard() {
           <Text style={{ color: shop.is_open ? Colors.success : Colors.error, fontWeight: '600', fontSize: 13 }}>
             {toggling ? 'Updating...' : shop.is_open ? 'Open' : 'Closed'}
           </Text>
-        </TouchableOpacity>
+        </Pressable>
       </View>
 
       <View style={styles.stats}>
@@ -132,9 +152,9 @@ export default function ShopDashboard() {
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Recent Orders</Text>
-          <TouchableOpacity onPress={() => router.push('/(shop)/orders')}><Text style={styles.seeAll}>See all</Text></TouchableOpacity>
+          <Pressable onPress={() => router.push('/(shop)/orders')}><Text style={styles.seeAll}>See all</Text></Pressable>
         </View>
-        {orders.slice(0, 5).map((o) => <OrderCard key={o.id} order={o} role="shop_owner" />)}
+        {orders.slice(0, 5).map((o) => <OrderCard key={o.id} order={o} viewerRole="shop_owner" />)}
         {orders.length === 0 && (
           <View style={styles.emptyOrders}>
             <Text style={styles.emptyText}>No orders yet</Text>

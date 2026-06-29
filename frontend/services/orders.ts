@@ -20,4 +20,7 @@ export const orderService = {
 
   shopConfirm: (orderId: string, status: 'confirmed' | 'ready') =>
     api.patch(`/orders/${orderId}/shop-confirm`, { status }).then((r) => r.data),
+
+  verifyPayment: (orderId: string, paymentData: { razorpay_order_id: string, razorpay_payment_id: string, razorpay_signature: string }) =>
+    api.post(`/orders/${orderId}/verify-payment`, paymentData).then((r) => r.data),
 };

@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useReducer } from 'react';
 import {
   View,
   Text,
   ScrollView,
-  TouchableOpacity,
+  Pressable,
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
@@ -31,23 +31,35 @@ const DEST: Record<string, string> = {
   delivery_partner: '/(delivery)',
 };
 
+interface LoginState { mode: Mode; name: string; email: string; password: string; confirmPassword: string; role: UserRole; loading: boolean; }
+const LOGIN_INIT: LoginState = { mode: 'login', name: '', email: '', password: '', confirmPassword: '', role: 'customer', loading: false };
+type LoginAction =
+  | { type: 'switch_mode'; value: Mode }
+  | { type: 'set_name'; value: string }
+  | { type: 'set_email'; value: string }
+  | { type: 'set_password'; value: string }
+  | { type: 'set_confirm_password'; value: string }
+  | { type: 'set_role'; value: UserRole }
+  | { type: 'set_loading'; value: boolean };
+function loginReducer(state: LoginState, action: LoginAction): LoginState {
+  switch (action.type) {
+    case 'switch_mode': return { ...LOGIN_INIT, mode: action.value };
+    case 'set_name': return { ...state, name: action.value };
+    case 'set_email': return { ...state, email: action.value };
+    case 'set_password': return { ...state, password: action.value };
+    case 'set_confirm_password': return { ...state, confirmPassword: action.value };
+    case 'set_role': return { ...state, role: action.value };
+    case 'set_loading': return { ...state, loading: action.value };
+  }
+}
+
 export default function LoginScreen() {
-  const [mode, setMode] = useState<Mode>('login');
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [role, setRole] = useState<UserRole>('customer');
-  const [loading, setLoading] = useState(false);
+  const [state, dispatch] = useReducer(loginReducer, LOGIN_INIT);
+  const { mode, name, email, password, confirmPassword, role, loading } = state;
   const { setAuth } = useAuthStore();
 
   function switchMode(m: Mode) {
-    setMode(m);
-    setName('');
-    setEmail('');
-    setPassword('');
-    setConfirmPassword('');
-    setRole('customer');
+    dispatch({ type: 'switch_mode', value: m });
   }
 
   async function handleLogin() {
@@ -55,7 +67,7 @@ export default function LoginScreen() {
       Toast.show({ type: 'error', text1: 'Enter your email and password' });
       return;
     }
-    setLoading(true);
+    dispatch({ type: 'set_loading', value: true });
     try {
       const data = await authService.login({ email: email.trim().toLowerCase(), password });
       setAuth(data.user, data.access_token, data.refresh_token);
@@ -63,7 +75,7 @@ export default function LoginScreen() {
     } catch (err: any) {
       Toast.show({ type: 'error', text1: err.response?.data?.detail ?? 'Login failed' });
     } finally {
-      setLoading(false);
+      dispatch({ type: 'set_loading', value: false });
     }
   }
 
@@ -84,7 +96,7 @@ export default function LoginScreen() {
       Toast.show({ type: 'error', text1: 'Passwords do not match' });
       return;
     }
-    setLoading(true);
+    dispatch({ type: 'set_loading', value: true });
     try {
       const data = await authService.register({
         name: name.trim(),
@@ -97,7 +109,7 @@ export default function LoginScreen() {
     } catch (err: any) {
       Toast.show({ type: 'error', text1: err.response?.data?.detail ?? 'Registration failed' });
     } finally {
-      setLoading(false);
+      dispatch({ type: 'set_loading', value: false });
     }
   }
 
@@ -112,20 +124,18 @@ export default function LoginScreen() {
 
         {/* Mode tabs */}
         <View style={styles.tabRow}>
-          <TouchableOpacity
-            style={[styles.tab, mode === 'login' && styles.tabActive]}
+          <Pressable
+            style={({ pressed }) => [styles.tab, mode === 'login' && styles.tabActive, pressed && { opacity: 0.8 }]}
             onPress={() => switchMode('login')}
-            activeOpacity={0.8}
           >
             <Text style={[styles.tabText, mode === 'login' && styles.tabTextActive]}>Login</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.tab, mode === 'register' && styles.tabActive]}
+          </Pressable>
+          <Pressable
+            style={({ pressed }) => [styles.tab, mode === 'register' && styles.tabActive, pressed && { opacity: 0.8 }]}
             onPress={() => switchMode('register')}
-            activeOpacity={0.8}
           >
             <Text style={[styles.tabText, mode === 'register' && styles.tabTextActive]}>Create Account</Text>
-          </TouchableOpacity>
+          </Pressable>
         </View>
 
         <View style={styles.form}>
@@ -138,7 +148,7 @@ export default function LoginScreen() {
                 label="Email Address"
                 placeholder="you@example.com"
                 value={email}
-                onChangeText={setEmail}
+                onChangeText={(v) => dispatch({ type: 'set_email', value: v })}
                 keyboardType="email-address"
                 autoCapitalize="none"
                 leftIcon="mail-outline"
@@ -147,7 +157,7 @@ export default function LoginScreen() {
                 label="Password"
                 placeholder="Your password"
                 value={password}
-                onChangeText={setPassword}
+                onChangeText={(v) => dispatch({ type: 'set_password', value: v })}
                 secureTextEntry
                 leftIcon="lock-closed-outline"
               />
@@ -169,16 +179,15 @@ export default function LoginScreen() {
               <Text style={styles.sectionLabel}>I want to join as...</Text>
               <View style={styles.roleGrid}>
                 {ROLES.map((r) => (
-                  <TouchableOpacity
+                  <Pressable
                     key={r.value}
-                    style={[styles.roleCard, role === r.value && styles.roleCardActive]}
-                    onPress={() => setRole(r.value)}
-                    activeOpacity={0.8}
+                    style={({ pressed }) => [styles.roleCard, role === r.value && styles.roleCardActive, pressed && { opacity: 0.8 }]}
+                    onPress={() => dispatch({ type: 'set_role', value: r.value })}
                   >
                     <Text style={styles.roleIcon}>{r.icon}</Text>
                     <Text style={[styles.roleLabel, role === r.value && styles.roleLabelActive]}>{r.label}</Text>
                     <Text style={styles.roleDesc}>{r.desc}</Text>
-                  </TouchableOpacity>
+                  </Pressable>
                 ))}
               </View>
 
@@ -186,14 +195,14 @@ export default function LoginScreen() {
                 label="Full Name"
                 placeholder="Your full name"
                 value={name}
-                onChangeText={setName}
+                onChangeText={(v) => dispatch({ type: 'set_name', value: v })}
                 leftIcon="person-outline"
               />
               <Input
                 label="Email Address"
                 placeholder="you@example.com"
                 value={email}
-                onChangeText={setEmail}
+                onChangeText={(v) => dispatch({ type: 'set_email', value: v })}
                 keyboardType="email-address"
                 autoCapitalize="none"
                 leftIcon="mail-outline"
@@ -202,7 +211,7 @@ export default function LoginScreen() {
                 label="Password"
                 placeholder="Min. 6 characters"
                 value={password}
-                onChangeText={setPassword}
+                onChangeText={(v) => dispatch({ type: 'set_password', value: v })}
                 secureTextEntry
                 leftIcon="lock-closed-outline"
               />
@@ -210,7 +219,7 @@ export default function LoginScreen() {
                 label="Confirm Password"
                 placeholder="Re-enter your password"
                 value={confirmPassword}
-                onChangeText={setConfirmPassword}
+                onChangeText={(v) => dispatch({ type: 'set_confirm_password', value: v })}
                 secureTextEntry
                 leftIcon="lock-closed-outline"
               />
@@ -249,11 +258,7 @@ const styles = StyleSheet.create({
   tab: { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 10 },
   tabActive: {
     backgroundColor: Colors.white,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 2,
+    boxShadow: '0px 1px 4px rgba(0,0,0,0.08)',
   },
   tabText: { fontSize: 14, fontWeight: '600', color: Colors.textSecondary },
   tabTextActive: { color: Colors.primary },
