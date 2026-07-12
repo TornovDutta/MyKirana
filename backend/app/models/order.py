@@ -25,6 +25,7 @@ class OrderCreate(BaseModel):
     items: List[Dict]  # [{"product_id": str, "quantity": int}]
     delivery_address: DeliveryAddress
     notes: Optional[str] = None
+    payment_method: str = "online"
 
 
 class OrderItem(BaseModel):

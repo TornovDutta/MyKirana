@@ -4,7 +4,7 @@ from typing import Optional
 from bson import ObjectId
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-import os
+from app.config import settings
 import razorpay
 
 from app.database import get_db
@@ -16,8 +16,8 @@ from app.models.order import OrderCreate, OrderStatus, PaymentVerification
 
 router = APIRouter(prefix="/orders", tags=["orders"])
 
-RAZORPAY_KEY_ID = os.getenv("RAZORPAY_KEY_ID", "rzp_test_1DP5mmOlF5G5ag")
-RAZORPAY_KEY_SECRET = os.getenv("RAZORPAY_KEY_SECRET", "51GQY01l1R67484M0T8qgP4Q")
+RAZORPAY_KEY_ID = settings.razorpay_key_id
+RAZORPAY_KEY_SECRET = settings.razorpay_key_secret
 
 try:
     razorpay_client = razorpay.Client(auth=(RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET))
@@ -78,6 +78,7 @@ async def place_order(
         "status": OrderStatus.PENDING,
         "delivery_partner_id": None,
         "notes": order_data.notes,
+        "payment_method": order_data.payment_method,
         "payment_status": "pending",
         "created_at": datetime.utcnow(),
         "updated_at": datetime.utcnow(),
@@ -86,7 +87,16 @@ async def place_order(
     order_id_str = str(result.inserted_id)
 
     razorpay_order_id = None
-    if razorpay_client:
+    if order_data.payment_method == "online":
+        if not razorpay_client:
+            await db.orders.delete_one({"_id": result.inserted_id})
+            for item in items:
+                await db.products.update_one(
+                    {"_id": ObjectId(item["product_id"])},
+                    {"$inc": {"quantity_in_stock": item["quantity"]}},
+                )
+            raise HTTPException(status_code=500, detail="Razorpay is not configured on the server.")
+            
         try:
             rzp_order = razorpay_client.order.create({
                 "amount": int(doc["total"] * 100),
@@ -100,7 +110,14 @@ async def place_order(
                 {"$set": {"razorpay_order_id": razorpay_order_id}}
             )
         except Exception as e:
+            await db.orders.delete_one({"_id": result.inserted_id})
+            for item in items:
+                await db.products.update_one(
+                    {"_id": ObjectId(item["product_id"])},
+                    {"$inc": {"quantity_in_stock": item["quantity"]}},
+                )
             print("Razorpay error:", e)
+            raise HTTPException(status_code=500, detail="Failed to initialize payment gateway. Please check API keys or try again.")
 
     return {
         "id": order_id_str,
@@ -133,6 +150,7 @@ async def verify_payment(
         {"_id": ObjectId(order_id)},
         {"$set": {
             "payment_status": "paid",
+            "status": OrderStatus.CONFIRMED,
             "razorpay_payment_id": payment_data.razorpay_payment_id,
             "updated_at": datetime.utcnow()
         }}

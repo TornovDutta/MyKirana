@@ -16,6 +16,7 @@ import Colors from '../../constants/colors';
 interface CheckoutState {
   address: string; city: string; pincode: string; notes: string;
   loading: boolean; savedAddresses: SavedAddress[]; selectedId: string | null;
+  paymentMethod: 'online' | 'cod';
 }
 type CheckoutAction =
   | { type: 'type_address'; value: string }
@@ -24,7 +25,8 @@ type CheckoutAction =
   | { type: 'set_notes'; value: string }
   | { type: 'set_loading'; value: boolean }
   | { type: 'set_saved_addresses'; value: SavedAddress[] }
-  | { type: 'pick_address'; value: SavedAddress };
+  | { type: 'pick_address'; value: SavedAddress }
+  | { type: 'set_payment_method'; value: 'online' | 'cod' };
 function checkoutReducer(state: CheckoutState, action: CheckoutAction): CheckoutState {
   switch (action.type) {
     case 'type_address': return { ...state, selectedId: null, address: action.value };
@@ -34,14 +36,15 @@ function checkoutReducer(state: CheckoutState, action: CheckoutAction): Checkout
     case 'set_loading': return { ...state, loading: action.value };
     case 'set_saved_addresses': return { ...state, savedAddresses: action.value };
     case 'pick_address': return { ...state, selectedId: action.value.id, address: action.value.address, city: action.value.city, pincode: action.value.pincode };
+    case 'set_payment_method': return { ...state, paymentMethod: action.value };
   }
 }
 
 export default function CheckoutScreen() {
   const { items, clearCart } = useCartStore();
   const { lat, lng } = useLocation();
-  const [state, dispatch] = useReducer(checkoutReducer, { address: '', city: '', pincode: '', notes: '', loading: false, savedAddresses: [], selectedId: null });
-  const { address, city, pincode, notes, loading, savedAddresses, selectedId } = state;
+  const [state, dispatch] = useReducer(checkoutReducer, { address: '', city: '', pincode: '', notes: '', loading: false, savedAddresses: [], selectedId: null, paymentMethod: 'online' });
+  const { address, city, pincode, notes, loading, savedAddresses, selectedId, paymentMethod } = state;
 
   useEffect(() => {
     addressService.list().then((d) => dispatch({ type: 'set_saved_addresses', value: d })).catch(() => {});
@@ -63,14 +66,14 @@ export default function CheckoutScreen() {
     dispatch({ type: 'set_loading', value: true });
     try {
       const requestedItems = items.map((i) => ({ product_id: i.product.id, quantity: i.quantity }));
-      const result = await orderService.place(requestedItems, { address, city, pincode, coordinates: [lng, lat] }, notes || undefined);
+      const result = await orderService.place(requestedItems, { address, city, pincode, coordinates: [lng, lat] }, notes || undefined, paymentMethod);
       
       if (result.razorpay_order_id) {
         const options = {
           description: 'MyKirana Order Payment',
           currency: 'INR',
           key: result.razorpay_key,
-          amount: result.total * 100,
+          amount: Math.round(result.total * 100).toString(),
           name: 'MyKirana',
           order_id: result.razorpay_order_id,
           theme: { color: Colors.primary }
@@ -86,9 +89,9 @@ export default function CheckoutScreen() {
           Toast.show({ type: 'success', text1: 'Payment successful!', text2: `Total: ₹${result.total}` });
           router.replace(`/(customer)/order/${result.id}` as any);
         } catch (paymentError: any) {
+          await orderService.cancel(result.id).catch(() => {});
           Toast.show({ type: 'error', text1: 'Payment failed or cancelled', text2: paymentError.description || 'Please try again' });
-          clearCart();
-          router.replace(`/(customer)/order/${result.id}` as any);
+          // Do not clear cart or navigate away so the user can retry
         }
       } else {
         clearCart();
@@ -188,6 +191,24 @@ export default function CheckoutScreen() {
               multiline
             />
 
+            <Text style={styles.sectionTitle}>Payment Method</Text>
+            <View style={styles.paymentMethodContainer}>
+              <Pressable
+                style={[styles.paymentMethodBtn, paymentMethod === 'online' && styles.paymentMethodBtnActive]}
+                onPress={() => dispatch({ type: 'set_payment_method', value: 'online' })}
+              >
+                <Ionicons name="card" size={20} color={paymentMethod === 'online' ? Colors.white : Colors.primary} />
+                <Text style={[styles.paymentMethodText, paymentMethod === 'online' && styles.paymentMethodTextActive]}>Online</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.paymentMethodBtn, paymentMethod === 'cod' && styles.paymentMethodBtnActive]}
+                onPress={() => dispatch({ type: 'set_payment_method', value: 'cod' })}
+              >
+                <Ionicons name="cash" size={20} color={paymentMethod === 'cod' ? Colors.white : Colors.primary} />
+                <Text style={[styles.paymentMethodText, paymentMethod === 'cod' && styles.paymentMethodTextActive]}>Cash</Text>
+              </Pressable>
+            </View>
+
             <Text style={styles.sectionTitle}>Order Summary</Text>
           </View>
         }
@@ -236,4 +257,9 @@ const styles = StyleSheet.create({
   savedChipActive: { backgroundColor: Colors.primary },
   savedChipText: { fontSize: 13, fontWeight: '600', color: Colors.primary },
   savedChipTextActive: { color: Colors.white },
+  paymentMethodContainer: { flexDirection: 'row', gap: 12, marginBottom: 16 },
+  paymentMethodBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, padding: 12, borderRadius: 8, borderWidth: 1, borderColor: Colors.primary, backgroundColor: Colors.white },
+  paymentMethodBtnActive: { backgroundColor: Colors.primary },
+  paymentMethodText: { fontSize: 14, fontWeight: '600', color: Colors.primary },
+  paymentMethodTextActive: { color: Colors.white },
 });
