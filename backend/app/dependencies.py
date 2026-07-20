@@ -4,12 +4,14 @@ from app.services.order_service import OrderService
 from app.services.smart_routing import RoutingService
 from app.services.shop_service import ShopService
 from app.services.sms_service import SmsService
+from app.services.firebase_service import FirebaseService
 
 _auth_service = AuthService(settings)
 _sms_service = SmsService(settings)
 _shop_service = ShopService()
 _order_service = OrderService()
 _routing_service = RoutingService(settings)
+_firebase_service = FirebaseService(settings)
 
 
 def get_auth_service() -> AuthService:
@@ -30,3 +32,7 @@ def get_order_service() -> OrderService:
 
 def get_routing_service() -> RoutingService:
     return _routing_service
+
+
+def get_firebase_service() -> FirebaseService:
+    return _firebase_service

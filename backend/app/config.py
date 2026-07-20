@@ -37,5 +37,8 @@ class Settings(BaseSettings):
     razorpay_key_id: str = ""
     razorpay_key_secret: str = ""
 
+    # Firebase Admin
+    firebase_credentials_path: str = "firebase-adminsdk.json"
+
 
 settings = Settings()

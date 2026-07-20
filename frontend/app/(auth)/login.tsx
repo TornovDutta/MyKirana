@@ -1,4 +1,4 @@
-import React, { useReducer } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -16,8 +16,8 @@ import { UserRole } from '../../types';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import Colors from '../../constants/colors';
-
-type Mode = 'login' | 'register';
+import { auth } from '../../services/firebase';
+import { RecaptchaVerifier, signInWithPhoneNumber, ConfirmationResult } from 'firebase/auth';
 
 const ROLES: { value: UserRole; label: string; icon: string; desc: string }[] = [
   { value: 'customer', label: 'Customer', icon: '🛒', desc: 'Shop from nearby stores' },
@@ -31,55 +31,108 @@ const DEST: Record<string, string> = {
   delivery_partner: '/(delivery)',
 };
 
-interface LoginState { mode: Mode; name: string; email: string; password: string; confirmPassword: string; role: UserRole; loading: boolean; }
-const LOGIN_INIT: LoginState = { mode: 'login', name: '', email: '', password: '', confirmPassword: '', role: 'customer', loading: false };
-type LoginAction =
-  | { type: 'switch_mode'; value: Mode }
-  | { type: 'set_name'; value: string }
-  | { type: 'set_email'; value: string }
-  | { type: 'set_password'; value: string }
-  | { type: 'set_confirm_password'; value: string }
-  | { type: 'set_role'; value: UserRole }
-  | { type: 'set_loading'; value: boolean };
-function loginReducer(state: LoginState, action: LoginAction): LoginState {
-  switch (action.type) {
-    case 'switch_mode': return { ...LOGIN_INIT, mode: action.value };
-    case 'set_name': return { ...state, name: action.value };
-    case 'set_email': return { ...state, email: action.value };
-    case 'set_password': return { ...state, password: action.value };
-    case 'set_confirm_password': return { ...state, confirmPassword: action.value };
-    case 'set_role': return { ...state, role: action.value };
-    case 'set_loading': return { ...state, loading: action.value };
-  }
-}
+type Step = 'phone' | 'otp' | 'profile';
 
 export default function LoginScreen() {
-  const [state, dispatch] = useReducer(loginReducer, LOGIN_INIT);
-  const { mode, name, email, password, confirmPassword, role, loading } = state;
+  const [step, setStep] = useState<Step>('phone');
+  const [role, setRole] = useState<UserRole>('customer');
+  const [phone, setPhone] = useState('');
+  const [otp, setOtp] = useState('');
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [confirmationResult, setConfirmationResult] = useState<ConfirmationResult | null>(null);
+  
   const { setAuth } = useAuthStore();
+  const recaptchaVerifier = useRef<RecaptchaVerifier | null>(null);
 
-  function switchMode(m: Mode) {
-    dispatch({ type: 'switch_mode', value: m });
-  }
+  useEffect(() => {
+    // Initialize RecaptchaVerifier for web
+    if (Platform.OS === 'web' && !recaptchaVerifier.current) {
+      recaptchaVerifier.current = new RecaptchaVerifier(auth, 'recaptcha-container', {
+        size: 'invisible',
+      });
+    }
+  }, []);
 
-  async function handleLogin() {
-    if (!email.trim() || !password) {
-      Toast.show({ type: 'error', text1: 'Enter your email and password' });
+  async function handleSendOTP() {
+    if (!phone.trim() || phone.length < 10) {
+      Toast.show({ type: 'error', text1: 'Enter a valid phone number' });
       return;
     }
-    dispatch({ type: 'set_loading', value: true });
+
+    setLoading(true);
     try {
-      const data = await authService.login({ email: email.trim().toLowerCase(), password });
-      setAuth(data.user, data.access_token, data.refresh_token);
-      router.replace((DEST[data.user.role] ?? '/(auth)/login') as any);
+      const formattedPhone = phone.startsWith('+') ? phone : `+91${phone}`; // Assuming India as default
+      
+      let appVerifier = recaptchaVerifier.current;
+      if (!appVerifier) {
+        if (Platform.OS !== 'web') {
+           // Provide a descriptive error for native environments where standard RecaptchaVerifier is unsupported without extra setup
+           console.warn("Recaptcha is not supported natively in this setup.");
+           Toast.show({ type: 'error', text1: 'Phone auth requires Web or native configuration' });
+           setLoading(false);
+           return;
+        } else {
+           appVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', { size: 'invisible' });
+           recaptchaVerifier.current = appVerifier;
+        }
+      }
+
+      const confirmation = await signInWithPhoneNumber(auth, formattedPhone, appVerifier as any);
+      setConfirmationResult(confirmation);
+      setStep('otp');
+      Toast.show({ type: 'success', text1: 'OTP sent successfully' });
     } catch (err: any) {
-      Toast.show({ type: 'error', text1: err.response?.data?.detail ?? 'Login failed' });
+      console.error(err);
+      Toast.show({ type: 'error', text1: err.message || 'Failed to send OTP' });
     } finally {
-      dispatch({ type: 'set_loading', value: false });
+      setLoading(false);
     }
   }
 
-  async function handleRegister() {
+  async function handleVerifyOTP() {
+    if (!otp.trim() || otp.length < 6) {
+      Toast.show({ type: 'error', text1: 'Enter a valid OTP' });
+      return;
+    }
+
+    if (!confirmationResult) {
+      Toast.show({ type: 'error', text1: 'Please request OTP again' });
+      setStep('phone');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const result = await confirmationResult.confirm(otp);
+      const idToken = await result.user.getIdToken();
+      
+      // Call backend to authenticate
+      const data = await authService.firebaseLogin({
+        id_token: idToken,
+        role: role
+      });
+      
+      setAuth(data.user, data.access_token, data.refresh_token);
+
+      if (!data.user.name || !data.user.email) {
+        // New user or incomplete profile
+        setStep('profile');
+      } else {
+        // Profile complete, navigate home
+        Toast.show({ type: 'success', text1: 'Login successful' });
+        router.replace((DEST[data.user.role] ?? '/(auth)/login') as any);
+      }
+    } catch (err: any) {
+      console.error(err);
+      Toast.show({ type: 'error', text1: err.response?.data?.detail || err.message || 'OTP Verification failed' });
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleCompleteProfile() {
     if (!name.trim()) {
       Toast.show({ type: 'error', text1: 'Enter your full name' });
       return;
@@ -88,101 +141,48 @@ export default function LoginScreen() {
       Toast.show({ type: 'error', text1: 'Enter a valid email address' });
       return;
     }
-    if (password.length < 6) {
-      Toast.show({ type: 'error', text1: 'Password must be at least 6 characters' });
-      return;
-    }
-    if (password !== confirmPassword) {
-      Toast.show({ type: 'error', text1: 'Passwords do not match' });
-      return;
-    }
-    dispatch({ type: 'set_loading', value: true });
+
+    setLoading(true);
     try {
-      const data = await authService.register({
+      const updatedUser = await authService.updateProfile({
         name: name.trim(),
         email: email.trim().toLowerCase(),
-        password,
-        role,
       });
-      setAuth(data.user, data.access_token, data.refresh_token);
-      router.replace((DEST[data.user.role] ?? '/(auth)/login') as any);
+      
+      const { user, accessToken, refreshToken } = useAuthStore.getState();
+      if (user) {
+        setAuth({ ...user, name: updatedUser.name || name.trim(), email: updatedUser.email || email.trim() }, accessToken!, refreshToken!);
+        Toast.show({ type: 'success', text1: 'Profile created successfully' });
+        router.replace((DEST[user.role] ?? '/(auth)/login') as any);
+      }
     } catch (err: any) {
-      Toast.show({ type: 'error', text1: err.response?.data?.detail ?? 'Registration failed' });
+      Toast.show({ type: 'error', text1: err.response?.data?.detail ?? 'Failed to update profile' });
     } finally {
-      dispatch({ type: 'set_loading', value: false });
+      setLoading(false);
     }
   }
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-
         <View style={styles.hero}>
           <Text style={styles.logo}>MyKirana</Text>
           <Text style={styles.tagline}>Your neighbourhood, delivered</Text>
         </View>
 
-        {/* Mode tabs */}
-        <View style={styles.tabRow}>
-          <Pressable
-            style={({ pressed }) => [styles.tab, mode === 'login' && styles.tabActive, pressed && { opacity: 0.8 }]}
-            onPress={() => switchMode('login')}
-          >
-            <Text style={[styles.tabText, mode === 'login' && styles.tabTextActive]}>Login</Text>
-          </Pressable>
-          <Pressable
-            style={({ pressed }) => [styles.tab, mode === 'register' && styles.tabActive, pressed && { opacity: 0.8 }]}
-            onPress={() => switchMode('register')}
-          >
-            <Text style={[styles.tabText, mode === 'register' && styles.tabTextActive]}>Create Account</Text>
-          </Pressable>
-        </View>
-
         <View style={styles.form}>
-          {mode === 'login' ? (
+          {step === 'phone' && (
             <>
-              <Text style={styles.title}>Welcome back!</Text>
-              <Text style={styles.subtitle}>Sign in to continue</Text>
+              <Text style={styles.title}>Welcome!</Text>
+              <Text style={styles.subtitle}>Login or create an account</Text>
 
-              <Input
-                label="Email Address"
-                placeholder="you@example.com"
-                value={email}
-                onChangeText={(v) => dispatch({ type: 'set_email', value: v })}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                leftIcon="mail-outline"
-              />
-              <Input
-                label="Password"
-                placeholder="Your password"
-                value={password}
-                onChangeText={(v) => dispatch({ type: 'set_password', value: v })}
-                secureTextEntry
-                leftIcon="lock-closed-outline"
-              />
-
-              <Button title="Login" onPress={handleLogin} loading={loading} fullWidth style={styles.actionBtn} />
-
-              <View style={styles.switchRow}>
-                <Text style={styles.switchText}>
-                  New to MyKirana?{' '}
-                  <Text style={styles.switchLink} onPress={() => switchMode('register')}>Create Account</Text>
-                </Text>
-              </View>
-            </>
-          ) : (
-            <>
-              <Text style={styles.title}>Create your account</Text>
-              <Text style={styles.subtitle}>Join MyKirana today</Text>
-
-              <Text style={styles.sectionLabel}>I want to join as...</Text>
+              <Text style={styles.sectionLabel}>Continue as...</Text>
               <View style={styles.roleGrid}>
                 {ROLES.map((r) => (
                   <Pressable
                     key={r.value}
                     style={({ pressed }) => [styles.roleCard, role === r.value && styles.roleCardActive, pressed && { opacity: 0.8 }]}
-                    onPress={() => dispatch({ type: 'set_role', value: r.value })}
+                    onPress={() => setRole(r.value)}
                   >
                     <Text style={styles.roleIcon}>{r.icon}</Text>
                     <Text style={[styles.roleLabel, role === r.value && styles.roleLabelActive]}>{r.label}</Text>
@@ -192,49 +192,76 @@ export default function LoginScreen() {
               </View>
 
               <Input
+                label="Phone Number"
+                placeholder="10-digit mobile number"
+                value={phone}
+                onChangeText={setPhone}
+                keyboardType="phone-pad"
+                leftIcon="call-outline"
+              />
+
+              <Button title="Send OTP" onPress={handleSendOTP} loading={loading} fullWidth style={styles.actionBtn} />
+            </>
+          )}
+
+          {step === 'otp' && (
+            <>
+              <Text style={styles.title}>Verify OTP</Text>
+              <Text style={styles.subtitle}>Enter the OTP sent to {phone}</Text>
+
+              <Input
+                label="One Time Password"
+                placeholder="Enter 6-digit OTP"
+                value={otp}
+                onChangeText={setOtp}
+                keyboardType="number-pad"
+                leftIcon="key-outline"
+                maxLength={6}
+              />
+
+              <Button title="Verify & Login" onPress={handleVerifyOTP} loading={loading} fullWidth style={styles.actionBtn} />
+              
+              <View style={styles.switchRow}>
+                <Text style={styles.switchText}>
+                  Didn't receive code?{' '}
+                  <Text style={styles.switchLink} onPress={handleSendOTP}>Resend</Text>
+                </Text>
+              </View>
+              <View style={styles.switchRow}>
+                <Text style={styles.switchLink} onPress={() => setStep('phone')}>Change Phone Number</Text>
+              </View>
+            </>
+          )}
+
+          {step === 'profile' && (
+            <>
+              <Text style={styles.title}>Complete Profile</Text>
+              <Text style={styles.subtitle}>Tell us a bit about yourself</Text>
+
+              <Input
                 label="Full Name"
                 placeholder="Your full name"
                 value={name}
-                onChangeText={(v) => dispatch({ type: 'set_name', value: v })}
+                onChangeText={setName}
                 leftIcon="person-outline"
               />
               <Input
                 label="Email Address"
                 placeholder="you@example.com"
                 value={email}
-                onChangeText={(v) => dispatch({ type: 'set_email', value: v })}
+                onChangeText={setEmail}
                 keyboardType="email-address"
                 autoCapitalize="none"
                 leftIcon="mail-outline"
               />
-              <Input
-                label="Password"
-                placeholder="Min. 6 characters"
-                value={password}
-                onChangeText={(v) => dispatch({ type: 'set_password', value: v })}
-                secureTextEntry
-                leftIcon="lock-closed-outline"
-              />
-              <Input
-                label="Confirm Password"
-                placeholder="Re-enter your password"
-                value={confirmPassword}
-                onChangeText={(v) => dispatch({ type: 'set_confirm_password', value: v })}
-                secureTextEntry
-                leftIcon="lock-closed-outline"
-              />
 
-              <Button title="Create Account" onPress={handleRegister} loading={loading} fullWidth style={styles.actionBtn} />
-
-              <View style={styles.switchRow}>
-                <Text style={styles.switchText}>
-                  Already have an account?{' '}
-                  <Text style={styles.switchLink} onPress={() => switchMode('login')}>Login</Text>
-                </Text>
-              </View>
+              <Button title="Save & Continue" onPress={handleCompleteProfile} loading={loading} fullWidth style={styles.actionBtn} />
             </>
           )}
         </View>
+        
+        {/* Invisible ReCaptcha container for Firebase Web */}
+        <View nativeID="recaptcha-container" />
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -247,26 +274,10 @@ const styles = StyleSheet.create({
   logo: { fontSize: 36, fontWeight: '800', color: Colors.white },
   tagline: { fontSize: 14, color: 'rgba(255,255,255,0.8)', marginTop: 6 },
 
-  tabRow: {
-    flexDirection: 'row',
-    margin: 20,
-    marginBottom: 0,
-    backgroundColor: Colors.background,
-    borderRadius: 12,
-    padding: 4,
-  },
-  tab: { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 10 },
-  tabActive: {
-    backgroundColor: Colors.white,
-    boxShadow: '0px 1px 4px rgba(0,0,0,0.08)',
-  },
-  tabText: { fontSize: 14, fontWeight: '600', color: Colors.textSecondary },
-  tabTextActive: { color: Colors.primary },
-
-  form: { padding: 24, paddingTop: 20 },
+  form: { padding: 24, paddingTop: 30 },
   title: { fontSize: 22, fontWeight: '700', color: Colors.text, marginBottom: 4 },
   subtitle: { fontSize: 14, color: Colors.textSecondary, marginBottom: 20 },
-  actionBtn: { marginTop: 8 },
+  actionBtn: { marginTop: 16 },
 
   sectionLabel: { fontSize: 15, fontWeight: '600', color: Colors.text, marginBottom: 12 },
   roleGrid: { flexDirection: 'row', gap: 8, marginBottom: 20 },
