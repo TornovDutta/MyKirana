@@ -1,4 +1,27 @@
-export const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:8000';
+import Constants from 'expo-constants';
+import { Platform } from 'react-native';
+
+const getApiBaseUrl = (): string => {
+  const envUrl = process.env.EXPO_PUBLIC_API_URL;
+  const host = Constants.expoConfig?.hostUri?.split(':')[0];
+
+  if (envUrl && envUrl.trim() !== '') {
+    // On mobile devices, localhost refers to the phone itself, so replace with host IP if available
+    if (Platform.OS !== 'web' && (envUrl.includes('localhost') || envUrl.includes('127.0.0.1')) && host) {
+      return `http://${host}:8000`;
+    }
+    return envUrl;
+  }
+
+  // Fallback for mobile devices: connect to backend on the computer's IP
+  if (Platform.OS !== 'web' && host) {
+    return `http://${host}:8000`;
+  }
+
+  return 'http://localhost:8000';
+};
+
+export const API_BASE_URL = getApiBaseUrl();
 
 const DEFAULT_DELIVERY_RADIUS_KM = 10;
 

@@ -4,7 +4,7 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import MapView, { Marker } from 'react-native-maps';
+import OrderMapView from '../../../components/OrderMapView';
 import Toast from 'react-native-toast-message';
 import { orderService } from '../../../services/orders';
 import { deliveryService } from '../../../services/delivery';
@@ -228,25 +228,13 @@ export default function OrderDetailScreen() {
 
               {partnerCoord ? (
                 <>
-                  <MapView
+                  <OrderMapView
                     style={styles.map}
-                    initialRegion={{
-                      latitude: partnerCoord.latitude,
-                      longitude: partnerCoord.longitude,
-                      latitudeDelta: 0.015,
-                      longitudeDelta: 0.015,
-                    }}
-                  >
-                    <Marker coordinate={partnerCoord} title={track?.partner_name ?? 'Delivery Partner'} description="Heading to you">
-                      <View style={styles.partnerMarker}>
-                        <Ionicons name="bicycle" size={18} color={Colors.white} />
-                      </View>
-                    </Marker>
-
-                    {deliveryCoord && (
-                      <Marker coordinate={deliveryCoord} title="Your Location" pinColor={Colors.primary} />
-                    )}
-                  </MapView>
+                    partnerCoord={partnerCoord}
+                    deliveryCoord={deliveryCoord}
+                    partnerName={track?.partner_name}
+                    partnerMarkerStyle={styles.partnerMarker}
+                  />
                   {track?.updated_at && (
                     <Text style={styles.lastUpdated}>
                       Updated {secondsAgoLabel(track.updated_at)}

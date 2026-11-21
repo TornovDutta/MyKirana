@@ -187,6 +187,7 @@ const styles = StyleSheet.create({
   avatar: { width: 72, height: 72, borderRadius: 36, backgroundColor: 'rgba(255,255,255,0.3)', alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
   avatarText: { fontSize: 28, fontWeight: '700', color: Colors.white },
   name: { fontSize: 20, fontWeight: '700', color: Colors.white },
+  email: { fontSize: 13, color: 'rgba(255,255,255,0.8)', marginTop: 3 },
   phone: { fontSize: 13, color: 'rgba(255,255,255,0.8)', marginTop: 3 },
   section: { padding: 16 },
   sectionTitle: { fontSize: 16, fontWeight: '700', color: Colors.text, marginBottom: 10 },

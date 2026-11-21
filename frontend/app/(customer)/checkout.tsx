@@ -3,7 +3,7 @@ import { View, Text, FlatList, StyleSheet, Pressable, KeyboardAvoidingView, Plat
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import Toast from 'react-native-toast-message';
-import RazorpayCheckout from 'react-native-razorpay';
+import RazorpayCheckout from '../../services/razorpay';
 import { useCartStore } from '../../stores/cartStore';
 import { useLocation } from '../../hooks/useLocation';
 import { orderService } from '../../services/orders';

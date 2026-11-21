@@ -45,7 +45,7 @@ export default function CartScreen() {
         <Ionicons name="cart-outline" size={72} color={Colors.gray} />
         <Text style={styles.emptyTitle}>Your cart is empty</Text>
         <Text style={styles.emptySubtitle}>Add items from nearby shops</Text>
-        <Button title="Browse Shops" onPress={() => router.push('/(customer)/')} style={styles.browseBtn} />
+        <Button title="Browse Shops" onPress={() => router.push('/(customer)')} style={styles.browseBtn} />
       </View>
     );
   }

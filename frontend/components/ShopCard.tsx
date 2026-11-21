@@ -85,6 +85,7 @@ const styles = StyleSheet.create({
   imageClosed: { opacity: 0.4 },
   imageFallback: { backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center' },
   imageFallbackClosed: { backgroundColor: Colors.gray },
+  shopInitial: { fontSize: 32, fontWeight: '700', color: Colors.white },
   closedBanner: {
     position: 'absolute',
     top: 90,
