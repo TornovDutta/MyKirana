@@ -13,6 +13,6 @@ export const authService = {
   updateProfile: (data: { name?: string; email?: string; profile_image?: string }) =>
     api.patch('/users/me', data).then((r) => r.data),
 
-  firebaseLogin: (data: { id_token: string; role: UserRole }) =>
+  firebaseLogin: (data: { id_token: string; role?: UserRole; name?: string; phone_number?: string }) =>
     api.post('/auth/firebase-login', data).then((r) => r.data),
 };

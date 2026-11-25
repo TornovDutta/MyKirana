@@ -19,7 +19,7 @@ export default function OrderCard({ order, viewerRole = 'customer' }: OrderCardP
   return (
     <Pressable
       style={({ pressed }) => [styles.card, pressed && viewerRole === 'customer' && { opacity: 0.85 }]}
-      onPress={() => viewerRole === 'customer' && router.push(`/(customer)/order/${order.id}` as any)}
+      onPress={() => viewerRole === 'customer' && router.push(`/order/${order.id}` as any)}
     >
       <View style={styles.header}>
         <Text style={styles.orderId}>#{order.id.slice(-6).toUpperCase()}</Text>
@@ -50,7 +50,11 @@ const styles = StyleSheet.create({
     padding: 14,
     marginHorizontal: 16,
     marginBottom: 10,
-    boxShadow: '0px 1px 6px rgba(0,0,0,0.06)',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
   },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   orderId: { fontSize: 15, fontWeight: '700', color: Colors.text },

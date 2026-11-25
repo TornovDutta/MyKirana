@@ -297,7 +297,7 @@ const styles = StyleSheet.create({
   header: { backgroundColor: Colors.primary, paddingTop: 56, paddingBottom: 20, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 12 },
   bannerPicker: { borderRadius: 12, overflow: 'hidden', marginBottom: 8, backgroundColor: Colors.white, borderWidth: 1.5, borderColor: Colors.border, borderStyle: 'dashed' },
   bannerPreview: { width: '100%', height: 160 },
-  bannerOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  bannerOverlay: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center', gap: 8 },
   bannerOverlayText: { color: Colors.white, fontWeight: '600' },
   bannerEditBadge: { position: 'absolute', bottom: 10, right: 10, flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(0,0,0,0.55)', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20 },
   bannerEditText: { fontSize: 12, color: Colors.white, fontWeight: '600' },

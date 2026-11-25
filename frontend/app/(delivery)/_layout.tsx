@@ -13,10 +13,10 @@ export default function DeliveryLayout() {
         tabBarLabelStyle: { fontSize: 11, marginBottom: 2 },
       }}
     >
-      <Tabs.Screen name="index" options={{ title: 'Available', tabBarIcon: ({ color, size }) => <Ionicons name="list-outline" size={size} color={color} /> }} />
-      <Tabs.Screen name="active" options={{ title: 'Active', tabBarIcon: ({ color, size }) => <Ionicons name="bicycle-outline" size={size} color={color} /> }} />
-      <Tabs.Screen name="history" options={{ title: 'History', tabBarIcon: ({ color, size }) => <Ionicons name="time-outline" size={size} color={color} /> }} />
-      <Tabs.Screen name="profile" options={{ title: 'Profile', tabBarIcon: ({ color, size }) => <Ionicons name="person-outline" size={size} color={color} /> }} />
+      <Tabs.Screen name="index" options={{ title: 'Available', tabBarIcon: ({ color, size }) => <Ionicons name="list-outline" size={size} color={color as any} /> }} />
+      <Tabs.Screen name="active" options={{ title: 'Active', tabBarIcon: ({ color, size }) => <Ionicons name="bicycle-outline" size={size} color={color as any} /> }} />
+      <Tabs.Screen name="history" options={{ title: 'History', tabBarIcon: ({ color, size }) => <Ionicons name="time-outline" size={size} color={color as any} /> }} />
+      <Tabs.Screen name="profile" options={{ title: 'Profile', tabBarIcon: ({ color, size }) => <Ionicons name="person-outline" size={size} color={color as any} /> }} />
     </Tabs>
   );
 }

@@ -6,13 +6,13 @@ import {
 import { Image } from 'expo-image';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { shopService } from '../../../services/shops';
-import { productService } from '../../../services/products';
-import { useCartStore } from '../../../stores/cartStore';
-import ProductCard from '../../../components/ProductCard';
-import { Shop, Product } from '../../../types';
-import { PRODUCT_CATEGORIES } from '../../../constants/config';
-import Colors from '../../../constants/colors';
+import { shopService } from '../../services/shops';
+import { productService } from '../../services/products';
+import { useCartStore } from '../../stores/cartStore';
+import ProductCard from '../../components/ProductCard';
+import { Shop, Product } from '../../types';
+import { PRODUCT_CATEGORIES } from '../../constants/config';
+import Colors from '../../constants/colors';
 
 interface ShopDetailState { shop: Shop | null; products: Product[]; loading: boolean; search: string; category: string | null; }
 type ShopDetailAction =
@@ -192,7 +192,7 @@ const styles = StyleSheet.create({
   heroImage: { width: '100%', height: 220 },
   heroFallback: { backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center' },
   heroInitial: { fontSize: 72, fontWeight: '800', color: Colors.white },
-  heroOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.38)' },
+  heroOverlay: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(0,0,0,0.38)' },
   shopInfo: { position: 'absolute', bottom: 16, left: 16, right: 16 },
   shopName: { fontSize: 22, fontWeight: '800', color: Colors.white },
   shopAddress: { fontSize: 13, color: 'rgba(255,255,255,0.82)', marginTop: 2 },
@@ -202,7 +202,7 @@ const styles = StyleSheet.create({
   statusChip: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 12 },
   statusText: { fontSize: 11, color: Colors.white, fontWeight: '700' },
 
-  searchBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.white, margin: 16, marginBottom: 8, borderRadius: 10, paddingHorizontal: 12, gap: 8, boxShadow: '0px 1px 4px rgba(0,0,0,0.06)' },
+  searchBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.white, margin: 16, marginBottom: 8, borderRadius: 10, paddingHorizontal: 12, gap: 8, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 4 },
   searchInput: { flex: 1, paddingVertical: 12, fontSize: 15, color: Colors.text },
 
   categoryRow: { maxHeight: 44 },

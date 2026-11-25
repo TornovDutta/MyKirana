@@ -209,7 +209,7 @@ const styles = StyleSheet.create({
   label: { fontSize: 14, fontWeight: '500', color: Colors.text, marginBottom: 6 },
   imagePicker: { alignSelf: 'center', width: 140, height: 140, borderRadius: 12, overflow: 'hidden', borderWidth: 1.5, borderColor: Colors.border, borderStyle: 'dashed', marginBottom: 20 },
   imagePreview: { width: '100%', height: '100%' },
-  imageOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center', gap: 6 },
+  imageOverlay: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center', gap: 6 },
   imageOverlayText: { color: Colors.white, fontSize: 12, fontWeight: '600' },
   imageEditBadge: { position: 'absolute', bottom: 8, right: 8, flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(0,0,0,0.55)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 20 },
   imageEditText: { fontSize: 11, color: Colors.white, fontWeight: '600' },

@@ -1,4 +1,4 @@
-import React, { useReducer, useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -7,23 +7,26 @@ import {
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
+  Animated,
+  Dimensions,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import Toast from 'react-native-toast-message';
 import { authService } from '../../services/auth';
+import { loginWithGoogle } from '../../services/firebase';
 import { useAuthStore } from '../../stores/authStore';
 import { UserRole } from '../../types';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import Colors from '../../constants/colors';
-import { auth } from '../../services/firebase';
 
-type Mode = 'login' | 'register' | 'otp';
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 const ROLES: { value: UserRole; label: string; icon: string; desc: string }[] = [
-  { value: 'customer', label: 'Customer', icon: '🛒', desc: 'Shop from nearby stores' },
-  { value: 'shop_owner', label: 'Shop Owner', icon: '🏪', desc: 'Sell your products online' },
-  { value: 'delivery_partner', label: 'Delivery Partner', icon: '🚴', desc: 'Deliver orders and earn' },
+  { value: 'customer', label: 'Customer', icon: '🛒', desc: 'Shop from nearby local stores' },
+  { value: 'shop_owner', label: 'Shop Owner', icon: '🏪', desc: 'Manage catalog & sell online' },
+  { value: 'delivery_partner', label: 'Delivery Partner', icon: '🚴', desc: 'Deliver orders & earn flexibly' },
 ];
 
 const DEST: Record<string, string> = {
@@ -32,264 +35,398 @@ const DEST: Record<string, string> = {
   delivery_partner: '/(delivery)',
 };
 
-interface LoginState {
-  mode: Mode;
-  name: string;
-  email: string;
-  password: string;
-  confirmPassword: string;
-  role: UserRole;
-  phone: string;
-  otp: string;
-  loading: boolean;
-}
-
-const LOGIN_INIT: LoginState = {
-  mode: 'login',
-  name: '',
-  email: '',
-  password: '',
-  confirmPassword: '',
-  role: 'customer',
-  phone: '',
-  otp: '',
-  loading: false,
-};
-
-type LoginAction =
-  | { type: 'switch_mode'; value: Mode }
-  | { type: 'set_name'; value: string }
-  | { type: 'set_email'; value: string }
-  | { type: 'set_password'; value: string }
-  | { type: 'set_confirm_password'; value: string }
-  | { type: 'set_role'; value: UserRole }
-  | { type: 'set_phone'; value: string }
-  | { type: 'set_otp'; value: string }
-  | { type: 'set_loading'; value: boolean };
-
-function loginReducer(state: LoginState, action: LoginAction): LoginState {
-  switch (action.type) {
-    case 'switch_mode':
-      return { ...state, mode: action.value, loading: false };
-    case 'set_name':
-      return { ...state, name: action.value };
-    case 'set_email':
-      return { ...state, email: action.value };
-    case 'set_password':
-      return { ...state, password: action.value };
-    case 'set_confirm_password':
-      return { ...state, confirmPassword: action.value };
-    case 'set_role':
-      return { ...state, role: action.value };
-    case 'set_phone':
-      return { ...state, phone: action.value };
-    case 'set_otp':
-      return { ...state, otp: action.value };
-    case 'set_loading':
-      return { ...state, loading: action.value };
-    default:
-      return state;
-  }
-}
-
 export default function LoginScreen() {
-  const [state, dispatch] = useReducer(loginReducer, LOGIN_INIT);
-  const { mode, name, email, password, confirmPassword, role, loading } = state;
-  const { setAuth } = useAuthStore();
+  const [mode, setMode] = useState<'google_signin' | 'profile_setup'>('google_signin');
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [role, setRole] = useState<UserRole>('customer');
+  const [firebaseIdToken, setFirebaseIdToken] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
 
-  function switchMode(m: Mode) {
-    dispatch({ type: 'switch_mode', value: m });
-  }
+  const { user, accessToken, setAuth } = useAuthStore();
 
-  async function handleLogin() {
-    if (!email.trim() || !password) {
-      Toast.show({ type: 'error', text1: 'Enter your email and password' });
-      return;
+  // Animations
+  const heroFade = useRef(new Animated.Value(0)).current;
+  const heroSlide = useRef(new Animated.Value(-24)).current;
+  const cardFade = useRef(new Animated.Value(0)).current;
+  const cardSlide = useRef(new Animated.Value(32)).current;
+  const cardScale = useRef(new Animated.Value(0.96)).current;
+  const floatAnim = useRef(new Animated.Value(0)).current;
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+  const googleBtnScale = useRef(new Animated.Value(1)).current;
+
+  // Staggered entrance animation
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(heroFade, {
+        toValue: 1,
+        duration: 700,
+        useNativeDriver: true,
+      }),
+      Animated.timing(heroSlide, {
+        toValue: 0,
+        duration: 700,
+        useNativeDriver: true,
+      }),
+      Animated.timing(cardFade, {
+        toValue: 1,
+        duration: 650,
+        delay: 200,
+        useNativeDriver: true,
+      }),
+      Animated.spring(cardSlide, {
+        toValue: 0,
+        friction: 8,
+        tension: 40,
+        delay: 200,
+        useNativeDriver: true,
+      }),
+      Animated.spring(cardScale, {
+        toValue: 1,
+        friction: 8,
+        tension: 40,
+        delay: 200,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    // Continuous floating animation for hero icon
+    const floatLoop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(floatAnim, {
+          toValue: -8,
+          duration: 2000,
+          useNativeDriver: true,
+        }),
+        Animated.timing(floatAnim, {
+          toValue: 0,
+          duration: 2000,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    floatLoop.start();
+
+    // Subtle pulse for live delivery badge
+    const pulseLoop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1.25,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    pulseLoop.start();
+
+    return () => {
+      floatLoop.stop();
+      pulseLoop.stop();
+    };
+  }, []);
+
+  // Automatically redirect as soon as user authentication is confirmed
+  useEffect(() => {
+    if (accessToken && user?.role) {
+      const dest = DEST[user.role] ?? '/(customer)';
+      router.replace(dest as any);
     }
-    dispatch({ type: 'set_loading', value: true });
+  }, [accessToken, user]);
+
+  async function handleGoogleLogin() {
+    // Micro-interaction bounce
+    Animated.sequence([
+      Animated.timing(googleBtnScale, { toValue: 0.96, duration: 100, useNativeDriver: true }),
+      Animated.spring(googleBtnScale, { toValue: 1, friction: 5, useNativeDriver: true }),
+    ]).start();
+
+    setGoogleLoading(true);
     try {
-      const data = await authService.login({ email: email.trim().toLowerCase(), password });
-      setAuth(data.user, data.access_token, data.refresh_token);
-      Toast.show({ type: 'success', text1: 'Login successful' });
-      router.replace((DEST[data.user.role] ?? '/(auth)/login') as any);
+      const gResult = await loginWithGoogle();
+      setFirebaseIdToken(gResult.idToken);
+      if (gResult.displayName) {
+        setName(gResult.displayName);
+      }
+      if (gResult.email) {
+        setEmail(gResult.email);
+      }
+
+      // Check with backend if profile exists
+      const res = await authService.firebaseLogin({
+        id_token: gResult.idToken,
+      });
+
+      if (res.needs_profile) {
+        if (res.name && !name) {
+          setName(res.name);
+        }
+        setMode('profile_setup');
+        Toast.show({
+          type: 'info',
+          text1: 'Google Sign-In Successful!',
+          text2: 'Please enter your username and phone number to continue.',
+        });
+      } else {
+        setAuth(res.user, res.access_token, res.refresh_token);
+        Toast.show({ type: 'success', text1: `Welcome back, ${res.user.name || 'User'}!` });
+        router.replace((DEST[res.user.role] ?? '/(customer)') as any);
+      }
     } catch (err: any) {
-      Toast.show({ type: 'error', text1: err.response?.data?.detail ?? 'Login failed. Please check credentials.' });
+      if (err.code === 'auth/popup-closed-by-user') {
+        Toast.show({ type: 'info', text1: 'Google sign-in was cancelled' });
+      } else {
+        const msg = err.response?.data?.detail || err.message || 'Google sign-in failed';
+        Toast.show({ type: 'error', text1: msg });
+      }
     } finally {
-      dispatch({ type: 'set_loading', value: false });
+      setGoogleLoading(false);
     }
   }
 
-  async function handleRegister() {
+  async function handleCompleteProfile() {
     if (!name.trim()) {
-      Toast.show({ type: 'error', text1: 'Enter your full name' });
+      Toast.show({ type: 'error', text1: 'Please enter your username / full name' });
       return;
     }
-    if (!email.trim() || !email.includes('@')) {
-      Toast.show({ type: 'error', text1: 'Enter a valid email address' });
+    const cleanPhone = phone.trim().replace(/\D/g, '');
+    if (cleanPhone.length < 10) {
+      Toast.show({ type: 'error', text1: 'Please enter a valid 10-digit phone number' });
       return;
     }
-    if (password.length < 6) {
-      Toast.show({ type: 'error', text1: 'Password must be at least 6 characters' });
-      return;
-    }
-    if (password !== confirmPassword) {
-      Toast.show({ type: 'error', text1: 'Passwords do not match' });
-      return;
-    }
-    dispatch({ type: 'set_loading', value: true });
+
+    setLoading(true);
     try {
-      const data = await authService.register({
+      const res = await authService.firebaseLogin({
+        id_token: firebaseIdToken,
         name: name.trim(),
-        email: email.trim().toLowerCase(),
-        password,
+        phone_number: cleanPhone,
         role,
       });
-      setAuth(data.user, data.access_token, data.refresh_token);
-      Toast.show({ type: 'success', text1: 'Account created successfully!' });
-      router.replace((DEST[data.user.role] ?? '/(auth)/login') as any);
+
+      setAuth(res.user, res.access_token, res.refresh_token);
+      Toast.show({ type: 'success', text1: 'Account setup complete!' });
+      router.replace((DEST[res.user.role] ?? '/(customer)') as any);
     } catch (err: any) {
-      Toast.show({ type: 'error', text1: err.response?.data?.detail ?? 'Registration failed' });
+      Toast.show({
+        type: 'error',
+        text1: err.response?.data?.detail ?? 'Failed to complete profile',
+      });
     } finally {
-      dispatch({ type: 'set_loading', value: false });
+      setLoading(false);
     }
   }
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <View style={styles.hero}>
-          <Text style={styles.logo}>MyKirana</Text>
-          <Text style={styles.tagline}>Your neighbourhood, delivered</Text>
-        </View>
+    <KeyboardAvoidingView
+      style={styles.keyboardContainer}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
+      {/* Ambient background decoration */}
+      <View style={styles.ambientGlowTop} />
+      <View style={styles.ambientGlowBottom} />
 
-        {/* Mode tabs */}
-        <View style={styles.tabRow}>
-          <Pressable
-            style={[styles.tab, mode === 'login' && styles.tabActive]}
-            onPress={() => switchMode('login')}
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.wrapper}>
+          {/* Animated Hero Header */}
+          <Animated.View
+            style={[
+              styles.heroContainer,
+              {
+                opacity: heroFade,
+                transform: [{ translateY: heroSlide }],
+              },
+            ]}
           >
-            <Text style={[styles.tabText, mode === 'login' && styles.tabTextActive]}>Login</Text>
-          </Pressable>
-          <Pressable
-            style={[styles.tab, mode === 'register' && styles.tabActive]}
-            onPress={() => switchMode('register')}
+            {/* Live Badge */}
+            <View style={styles.liveBadge}>
+              <Animated.View
+                style={[
+                  styles.pulseDot,
+                  {
+                    transform: [{ scale: pulseAnim }],
+                  },
+                ]}
+              />
+              <Text style={styles.liveBadgeText}>10-Minute Hyperlocal Delivery</Text>
+            </View>
+
+            {/* Brand Logo & Tagline */}
+            <View style={styles.brandRow}>
+              <Animated.View
+                style={[
+                  styles.floatingIconBadge,
+                  {
+                    transform: [{ translateY: floatAnim }],
+                  },
+                ]}
+              >
+                <Ionicons name="basket" size={32} color={Colors.white} />
+              </Animated.View>
+              <Text style={styles.brandTitle}>MyKirana</Text>
+            </View>
+
+            <Text style={styles.brandTagline}>
+              Fresh groceries & daily essentials from your trusted neighbourhood stores
+            </Text>
+          </Animated.View>
+
+          {/* Animated Main Action Card */}
+          <Animated.View
+            style={[
+              styles.card,
+              {
+                opacity: cardFade,
+                transform: [{ translateY: cardSlide }, { scale: cardScale }],
+              },
+            ]}
           >
-            <Text style={[styles.tabText, mode === 'register' && styles.tabTextActive]}>Register</Text>
-          </Pressable>
-        </View>
-
-        <View style={styles.form}>
-          {mode === 'login' ? (
-            <>
-              <Text style={styles.title}>Welcome back</Text>
-              <Text style={styles.subtitle}>Sign in to your account</Text>
-
-              <Input
-                label="Email Address"
-                placeholder="you@example.com"
-                value={email}
-                onChangeText={(v) => dispatch({ type: 'set_email', value: v })}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                leftIcon="mail-outline"
-              />
-              <Input
-                label="Password"
-                placeholder="Enter your password"
-                value={password}
-                onChangeText={(v) => dispatch({ type: 'set_password', value: v })}
-                secureTextEntry
-                leftIcon="lock-closed-outline"
-              />
-
-              <Button title="Login" onPress={handleLogin} loading={loading} fullWidth style={styles.actionBtn} />
-
-              <View style={styles.switchRow}>
-                <Text style={styles.switchText}>
-                  New to MyKirana?{' '}
-                  <Text style={styles.switchLink} onPress={() => switchMode('register')}>
-                    Create Account
+            {mode === 'google_signin' ? (
+              <View style={styles.cardInner}>
+                <View style={styles.cardHeader}>
+                  <View style={styles.iconCircle}>
+                    <Ionicons name="sparkles" size={28} color={Colors.primary} />
+                  </View>
+                  <Text style={styles.welcomeHeading}>Get Started</Text>
+                  <Text style={styles.welcomeSubtext}>
+                    Join thousands getting instant doorstep delivery in your neighbourhood.
                   </Text>
-                </Text>
-              </View>
-            </>
-          ) : (
-            <>
-              <Text style={styles.title}>Create your account</Text>
-              <Text style={styles.subtitle}>Join MyKirana today</Text>
+                </View>
 
-              <Text style={styles.sectionLabel}>I want to join as...</Text>
-              <View style={styles.roleGrid}>
-                {ROLES.map((r) => (
+                {/* Google Sign-In Button */}
+                <Animated.View style={{ transform: [{ scale: googleBtnScale }] }}>
                   <Pressable
-                    key={r.value}
                     style={({ pressed }) => [
-                      styles.roleCard,
-                      role === r.value && styles.roleCardActive,
-                      pressed && { opacity: 0.8 },
+                      styles.googleBtn,
+                      pressed && styles.googleBtnPressed,
+                      googleLoading && styles.googleBtnDisabled,
                     ]}
-                    onPress={() => dispatch({ type: 'set_role', value: r.value })}
+                    onPress={handleGoogleLogin}
+                    disabled={googleLoading}
                   >
-                    <Text style={styles.roleIcon}>{r.icon}</Text>
-                    <Text style={[styles.roleLabel, role === r.value && styles.roleLabelActive]}>
-                      {r.label}
+                    <View style={styles.googleIconContainer}>
+                      <Ionicons name="logo-google" size={22} color="#EA4335" />
+                    </View>
+                    <Text style={styles.googleBtnText}>
+                      {googleLoading ? 'Signing in with Google...' : 'Continue with Google'}
                     </Text>
-                    <Text style={styles.roleDesc}>{r.desc}</Text>
+                    <Ionicons name="arrow-forward" size={18} color={Colors.textSecondary} style={{ marginLeft: 8 }} />
                   </Pressable>
-                ))}
+                </Animated.View>
+
+                {/* Trust and Feature Bullets */}
+                <View style={styles.featuresRow}>
+                  <View style={styles.featureItem}>
+                    <Ionicons name="flash-outline" size={16} color={Colors.primary} />
+                    <Text style={styles.featureText}>Instant Checkout</Text>
+                  </View>
+                  <View style={styles.featureDivider} />
+                  <View style={styles.featureItem}>
+                    <Ionicons name="shield-checkmark-outline" size={16} color={Colors.primary} />
+                    <Text style={styles.featureText}>100% Secure</Text>
+                  </View>
+                  <View style={styles.featureDivider} />
+                  <View style={styles.featureItem}>
+                    <Ionicons name="pricetag-outline" size={16} color={Colors.primary} />
+                    <Text style={styles.featureText}>Local Prices</Text>
+                  </View>
+                </View>
               </View>
-
-              <Input
-                label="Full Name"
-                placeholder="Your full name"
-                value={name}
-                onChangeText={(v) => dispatch({ type: 'set_name', value: v })}
-                leftIcon="person-outline"
-              />
-              <Input
-                label="Email Address"
-                placeholder="you@example.com"
-                value={email}
-                onChangeText={(v) => dispatch({ type: 'set_email', value: v })}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                leftIcon="mail-outline"
-              />
-              <Input
-                label="Password"
-                placeholder="Min. 6 characters"
-                value={password}
-                onChangeText={(v) => dispatch({ type: 'set_password', value: v })}
-                secureTextEntry
-                leftIcon="lock-closed-outline"
-              />
-              <Input
-                label="Confirm Password"
-                placeholder="Re-enter your password"
-                value={confirmPassword}
-                onChangeText={(v) => dispatch({ type: 'set_confirm_password', value: v })}
-                secureTextEntry
-                leftIcon="lock-closed-outline"
-              />
-
-              <Button
-                title="Create Account"
-                onPress={handleRegister}
-                loading={loading}
-                fullWidth
-                style={styles.actionBtn}
-              />
-
-              <View style={styles.switchRow}>
-                <Text style={styles.switchText}>
-                  Already have an account?{' '}
-                  <Text style={styles.switchLink} onPress={() => switchMode('login')}>
-                    Login
+            ) : (
+              <View style={styles.cardInner}>
+                <View style={styles.cardHeader}>
+                  <View style={styles.iconCircle}>
+                    <Ionicons name="person-outline" size={28} color={Colors.primary} />
+                  </View>
+                  <Text style={styles.welcomeHeading}>Complete Your Profile</Text>
+                  <Text style={styles.welcomeSubtext}>
+                    {email ? `Signed in as ${email}` : 'Enter your name and mobile number to continue.'}
                   </Text>
-                </Text>
+                </View>
+
+                <Text style={styles.roleSectionTitle}>Choose how you want to use MyKirana</Text>
+                <View style={styles.rolesContainer}>
+                  {ROLES.map((r) => {
+                    const isSelected = role === r.value;
+                    return (
+                      <Pressable
+                        key={r.value}
+                        style={({ pressed }) => [
+                          styles.roleCard,
+                          isSelected && styles.roleCardSelected,
+                          pressed && { opacity: 0.85 },
+                        ]}
+                        onPress={() => setRole(r.value)}
+                      >
+                        <Text style={styles.roleCardIcon}>{r.icon}</Text>
+                        <View style={styles.roleCardContent}>
+                          <Text style={[styles.roleCardLabel, isSelected && styles.roleCardLabelSelected]}>
+                            {r.label}
+                          </Text>
+                          <Text style={styles.roleCardDesc}>{r.desc}</Text>
+                        </View>
+                        {isSelected && (
+                          <Ionicons name="checkmark-circle" size={20} color={Colors.primary} />
+                        )}
+                      </Pressable>
+                    );
+                  })}
+                </View>
+
+                <Input
+                  label="Username / Full Name"
+                  placeholder="e.g. Rahul Sharma"
+                  value={name}
+                  onChangeText={setName}
+                  leftIcon="person-outline"
+                />
+
+                <Input
+                  label="Phone Number"
+                  placeholder="10-digit mobile number"
+                  value={phone}
+                  onChangeText={setPhone}
+                  keyboardType="phone-pad"
+                  leftIcon="call-outline"
+                  maxLength={10}
+                />
+
+                <Button
+                  title="Complete Setup & Enter"
+                  onPress={handleCompleteProfile}
+                  loading={loading}
+                  fullWidth
+                  style={styles.submitButton}
+                />
+
+                <Pressable
+                  style={styles.backButton}
+                  onPress={() => setMode('google_signin')}
+                >
+                  <Ionicons name="chevron-back" size={16} color={Colors.textSecondary} />
+                  <Text style={styles.backButtonText}>Back to Sign In</Text>
+                </Pressable>
               </View>
-            </>
-          )}
+            )}
+          </Animated.View>
+
+          {/* Footer note */}
+          <View style={styles.footer}>
+            <Text style={styles.footerText}>
+              By signing in, you agree to our Terms of Service & Privacy Policy
+            </Text>
+          </View>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -297,50 +434,277 @@ export default function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.white },
-  content: { flexGrow: 1 },
-  hero: { backgroundColor: Colors.primary, padding: 40, paddingTop: 60, alignItems: 'center' },
-  logo: { fontSize: 36, fontWeight: '800', color: Colors.white },
-  tagline: { fontSize: 14, color: 'rgba(255,255,255,0.8)', marginTop: 6 },
-
-  tabRow: {
-    flexDirection: 'row',
-    margin: 20,
-    marginBottom: 0,
-    backgroundColor: Colors.background,
-    borderRadius: 12,
-    padding: 4,
-  },
-  tab: { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 10 },
-  tabActive: {
-    backgroundColor: Colors.white,
-    boxShadow: '0px 1px 4px rgba(0,0,0,0.08)',
-  },
-  tabText: { fontSize: 14, fontWeight: '600', color: Colors.textSecondary },
-  tabTextActive: { color: Colors.primary },
-
-  form: { padding: 24, paddingTop: 20 },
-  title: { fontSize: 22, fontWeight: '700', color: Colors.text, marginBottom: 4 },
-  subtitle: { fontSize: 14, color: Colors.textSecondary, marginBottom: 20 },
-  actionBtn: { marginTop: 12 },
-
-  sectionLabel: { fontSize: 15, fontWeight: '600', color: Colors.text, marginBottom: 12 },
-  roleGrid: { flexDirection: 'row', gap: 8, marginBottom: 20 },
-  roleCard: {
+  keyboardContainer: {
     flex: 1,
-    borderWidth: 1.5,
-    borderColor: Colors.border,
-    borderRadius: 12,
-    padding: 12,
+    backgroundColor: '#F8FAFC',
+    position: 'relative',
+  },
+  ambientGlowTop: {
+    position: 'absolute',
+    top: -120,
+    left: '10%',
+    width: 320,
+    height: 320,
+    borderRadius: 160,
+    backgroundColor: 'rgba(16, 185, 129, 0.12)',
+    ...(Platform.OS === 'web' ? { filter: 'blur(70px)' } : {}),
+  },
+  ambientGlowBottom: {
+    position: 'absolute',
+    bottom: -100,
+    right: '10%',
+    width: 300,
+    height: 300,
+    borderRadius: 150,
+    backgroundColor: 'rgba(245, 158, 11, 0.08)',
+    ...(Platform.OS === 'web' ? { filter: 'blur(60px)' } : {}),
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 40,
+    paddingHorizontal: 16,
+  },
+  wrapper: {
+    width: '100%',
+    maxWidth: 460,
     alignItems: 'center',
   },
-  roleCardActive: { borderColor: Colors.primary, backgroundColor: Colors.primary + '12' },
-  roleIcon: { fontSize: 26, marginBottom: 6 },
-  roleLabel: { fontSize: 12, fontWeight: '700', color: Colors.textSecondary },
-  roleLabelActive: { color: Colors.primary },
-  roleDesc: { fontSize: 10, color: Colors.gray, textAlign: 'center', marginTop: 3 },
-
-  switchRow: { alignItems: 'center', marginTop: 20 },
-  switchText: { fontSize: 14, color: Colors.textSecondary },
-  switchLink: { color: Colors.primary, fontWeight: '600' },
+  heroContainer: {
+    alignItems: 'center',
+    marginBottom: 28,
+    width: '100%',
+  },
+  liveBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 20,
+    marginBottom: 16,
+    gap: 8,
+  },
+  pulseDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: Colors.primary,
+  },
+  liveBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#065F46',
+    letterSpacing: 0.2,
+  },
+  brandRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+    marginBottom: 8,
+  },
+  floatingIconBadge: {
+    width: 52,
+    height: 52,
+    borderRadius: 16,
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 4,
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+  },
+  brandTitle: {
+    fontSize: 36,
+    fontWeight: '800',
+    color: '#0F172A',
+    letterSpacing: -0.6,
+  },
+  brandTagline: {
+    fontSize: 14,
+    color: '#64748B',
+    textAlign: 'center',
+    lineHeight: 21,
+    paddingHorizontal: 16,
+    maxWidth: 380,
+  },
+  card: {
+    width: '100%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    elevation: 6,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.08,
+    shadowRadius: 24,
+    padding: 28,
+  },
+  cardInner: {
+    width: '100%',
+  },
+  cardHeader: {
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  iconCircle: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#D1FAE5',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
+  },
+  welcomeHeading: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#0F172A',
+    letterSpacing: -0.3,
+    marginBottom: 6,
+    textAlign: 'center',
+  },
+  welcomeSubtext: {
+    fontSize: 14,
+    color: '#64748B',
+    lineHeight: 20,
+    textAlign: 'center',
+  },
+  googleBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: '#CBD5E1',
+    borderRadius: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 18,
+    elevation: 2,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+  },
+  googleBtnPressed: {
+    backgroundColor: '#F8FAFC',
+    borderColor: '#94A3B8',
+  },
+  googleBtnDisabled: {
+    opacity: 0.7,
+  },
+  googleIconContainer: {
+    marginRight: 12,
+  },
+  googleBtnText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#1E293B',
+    letterSpacing: -0.1,
+  },
+  featuresRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 24,
+    paddingTop: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+  },
+  featureItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  featureText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#475569',
+  },
+  featureDivider: {
+    width: 1,
+    height: 14,
+    backgroundColor: '#E2E8F0',
+  },
+  roleSectionTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#334155',
+    marginBottom: 12,
+  },
+  rolesContainer: {
+    gap: 10,
+    marginBottom: 20,
+  },
+  roleCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    borderRadius: 14,
+    padding: 12,
+    backgroundColor: '#FFFFFF',
+    gap: 12,
+  },
+  roleCardSelected: {
+    borderColor: Colors.primary,
+    backgroundColor: '#F0FDF4',
+  },
+  roleCardIcon: {
+    fontSize: 26,
+  },
+  roleCardContent: {
+    flex: 1,
+  },
+  roleCardLabel: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#1E293B',
+  },
+  roleCardLabelSelected: {
+    color: Colors.primary,
+  },
+  roleCardDesc: {
+    fontSize: 12,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  submitButton: {
+    marginTop: 12,
+  },
+  backButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 16,
+    paddingVertical: 8,
+    gap: 4,
+  },
+  backButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  footer: {
+    marginTop: 24,
+    alignItems: 'center',
+  },
+  footerText: {
+    fontSize: 12,
+    color: '#94A3B8',
+    textAlign: 'center',
+    lineHeight: 18,
+  },
 });

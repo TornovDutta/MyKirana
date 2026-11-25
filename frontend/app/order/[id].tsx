@@ -4,13 +4,13 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import OrderMapView from '../../../components/OrderMapView';
+import OrderMapView from '../../components/OrderMapView';
 import Toast from 'react-native-toast-message';
-import { orderService } from '../../../services/orders';
-import { deliveryService } from '../../../services/delivery';
-import { Order, OrderStatus } from '../../../types';
-import { ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from '../../../constants/config';
-import Colors from '../../../constants/colors';
+import { orderService } from '../../services/orders';
+import { deliveryService } from '../../services/delivery';
+import { Order, OrderStatus } from '../../types';
+import { ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from '../../constants/config';
+import Colors from '../../constants/colors';
 
 const STATUS_STEPS: OrderStatus[] = ['pending', 'confirmed', 'preparing', 'ready', 'picked_up', 'delivered'];
 
@@ -335,7 +335,18 @@ const styles = StyleSheet.create({
   hint: { fontSize: 14, color: Colors.textSecondary },
 
   content: { padding: 16, gap: 12, paddingBottom: 40 },
-  card: { backgroundColor: Colors.white, borderRadius: 12, padding: 16, boxShadow: '0px 1px 6px rgba(0,0,0,0.06)' },
+  card: {
+    backgroundColor: Colors.white,
+    borderRadius: 14,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    elevation: 3,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+  },
 
   orderHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   orderId: { fontSize: 18, fontWeight: '800', color: Colors.text },
@@ -360,7 +371,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderWidth: 2,
     borderColor: Colors.white,
-    boxShadow: '0px 2px 4px rgba(0,0,0,0.25)',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
   },
   lastUpdated: { fontSize: 11, color: Colors.textSecondary, textAlign: 'right', marginTop: 6 },
   trackWaiting: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 16, justifyContent: 'center' },

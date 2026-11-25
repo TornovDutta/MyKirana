@@ -36,7 +36,9 @@ class LoginRequest(BaseModel):
 
 class FirebaseLoginRequest(BaseModel):
     id_token: str
-    role: UserRole = UserRole.CUSTOMER
+    role: Optional[UserRole] = UserRole.CUSTOMER
+    name: Optional[str] = None
+    phone_number: Optional[str] = None
 
 
 class SendOTPRequest(BaseModel):

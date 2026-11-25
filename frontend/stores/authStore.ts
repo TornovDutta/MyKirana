@@ -38,3 +38,10 @@ export const useAuthStore = create<AuthState>()(
     }
   )
 );
+
+// Fallback to guarantee hydration resolves even if storage is slow or silent
+setTimeout(() => {
+  if (!useAuthStore.getState().hasHydrated) {
+    useAuthStore.setState({ hasHydrated: true });
+  }
+}, 500);

@@ -87,7 +87,7 @@ export default function CheckoutScreen() {
           });
           clearCart();
           Toast.show({ type: 'success', text1: 'Payment successful!', text2: `Total: ₹${result.total}` });
-          router.replace(`/(customer)/order/${result.id}` as any);
+          router.replace(`/order/${result.id}` as any);
         } catch (paymentError: any) {
           await orderService.cancel(result.id).catch(() => {});
           Toast.show({ type: 'error', text1: 'Payment failed or cancelled', text2: paymentError.description || 'Please try again' });
@@ -96,7 +96,7 @@ export default function CheckoutScreen() {
       } else {
         clearCart();
         Toast.show({ type: 'success', text1: 'Order placed!', text2: `Total: ₹${result.total}` });
-        router.replace(`/(customer)/order/${result.id}` as any);
+        router.replace(`/order/${result.id}` as any);
       }
     } catch (err: any) {
       Toast.show({ type: 'error', text1: err.response?.data?.detail ?? 'Failed to place order' });

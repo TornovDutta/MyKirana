@@ -4,7 +4,7 @@ import { useCartStore } from '../../stores/cartStore';
 import { View, Text, StyleSheet } from 'react-native';
 import Colors from '../../constants/colors';
 
-function CartTabIcon({ color, size }: { color: string; size: number }) {
+function CartTabIcon({ color, size }: { color: any; size: number }) {
   const count = useCartStore((s) => s.getItemCount());
   return (
     <View>
@@ -29,14 +29,12 @@ export default function CustomerLayout() {
         tabBarLabelStyle: { fontSize: 11, marginBottom: 2 },
       }}
     >
-      <Tabs.Screen name="index" options={{ title: 'Home', tabBarIcon: ({ color, size }) => <Ionicons name="home-outline" size={size} color={color} /> }} />
+      <Tabs.Screen name="index" options={{ title: 'Home', tabBarIcon: ({ color, size }) => <Ionicons name="home-outline" size={size} color={color as any} /> }} />
       <Tabs.Screen name="cart" options={{ title: 'Cart', tabBarIcon: (props) => <CartTabIcon {...props} /> }} />
-      <Tabs.Screen name="orders" options={{ title: 'Orders', tabBarIcon: ({ color, size }) => <Ionicons name="receipt-outline" size={size} color={color} /> }} />
-      <Tabs.Screen name="profile" options={{ title: 'Profile', tabBarIcon: ({ color, size }) => <Ionicons name="person-outline" size={size} color={color} /> }} />
+      <Tabs.Screen name="orders" options={{ title: 'Orders', tabBarIcon: ({ color, size }) => <Ionicons name="receipt-outline" size={size} color={color as any} /> }} />
+      <Tabs.Screen name="profile" options={{ title: 'Profile', tabBarIcon: ({ color, size }) => <Ionicons name="person-outline" size={size} color={color as any} /> }} />
       <Tabs.Screen name="checkout" options={{ href: null }} />
       <Tabs.Screen name="addresses" options={{ href: null }} />
-      <Tabs.Screen name="shop/[id]" options={{ href: null }} />
-      <Tabs.Screen name="order/[id]" options={{ href: null }} />
     </Tabs>
   );
 }
