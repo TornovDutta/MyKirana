@@ -254,7 +254,10 @@ async def google_web_login(session_id: str = "", redirect_uri: str = "mykirana:/
           if (returnLink) {{
             returnLink.href = targetUrl;
             returnLink.style.display = "inline-flex";
+            returnLink.onclick = function() {{ window.location.href = targetUrl; }};
           }}
+
+          statusEl.innerHTML = "<b>Authenticated!</b><br>Returning to MyKirana app...<br><small style='color:#666;'>If you are not redirected automatically, tap the button above or close this window.</small>";
 
           try {{ window.location.replace(targetUrl); }} catch(e) {{}}
           try {{ window.location.href = targetUrl; }} catch(e) {{}}

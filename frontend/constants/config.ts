@@ -2,23 +2,23 @@ import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 
 const getApiBaseUrl = (): string => {
-  const envUrl = process.env.EXPO_PUBLIC_API_URL;
-  const host = Constants.expoConfig?.hostUri?.split(':')[0];
-
-  if (envUrl && envUrl.trim() !== '') {
-    // On mobile devices, localhost refers to the phone itself, so replace with host IP if available
-    if (Platform.OS !== 'web' && (envUrl.includes('localhost') || envUrl.includes('127.0.0.1')) && host) {
-      return `http://${host}:8000`;
-    }
-    return envUrl;
+  // On Web: connect to port 8000 on the same host the browser is accessing (e.g. localhost or current IP)
+  if (Platform.OS === 'web' && typeof window !== 'undefined' && window.location?.hostname) {
+    return `http://${window.location.hostname}:8000`;
   }
 
-  // Fallback for mobile devices: connect to backend on the computer's IP
+  // On Mobile: connect directly to the machine serving the Expo bundle
+  const host = Constants.expoConfig?.hostUri?.split(':')[0];
   if (Platform.OS !== 'web' && host) {
     return `http://${host}:8000`;
   }
 
-  return 'http://localhost:8000';
+  const envUrl = process.env.EXPO_PUBLIC_API_URL;
+  if (envUrl && envUrl.trim() !== '') {
+    return envUrl;
+  }
+
+  return 'http://172.25.240.65:8000';
 };
 
 export const API_BASE_URL = getApiBaseUrl();
