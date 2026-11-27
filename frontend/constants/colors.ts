@@ -1,16 +1,16 @@
 const Colors = {
-  // Brand Emerald Green
-  primary: '#059669',
-  primaryLight: '#10B981',
-  primaryDark: '#047857',
-  primaryMuted: '#ECFDF5',
-  primarySubtle: '#D1FAE5',
+  // Brand Royal Violet & Indigo
+  primary: '#6D28D9',
+  primaryLight: '#8B5CF6',
+  primaryDark: '#4C1D95',
+  primaryMuted: '#F5F3FF',
+  primarySubtle: '#EDE9FE',
 
-  // Accent Warm Amber / Tangerine
-  secondary: '#F59E0B',
-  secondaryLight: '#FBBF24',
-  secondaryDark: '#D97706',
-  secondaryMuted: '#FEF3C7',
+  // Accent Electric Coral / Tangerine
+  secondary: '#F97316',
+  secondaryLight: '#FB923C',
+  secondaryDark: '#EA580C',
+  secondaryMuted: '#FFF7ED',
 
   // Modern Neutral Canvas
   background: '#F8FAFC',
@@ -31,7 +31,7 @@ const Colors = {
   successMuted: '#ECFDF5',
   warning: '#F59E0B',
   warningMuted: '#FEF3C7',
-  info: '#3B82F6',
+  info: '#6366F1',
 
   // Base Neutrals
   white: '#FFFFFF',
@@ -44,24 +44,24 @@ const Colors = {
   // Shadows (Standard cross-platform presets)
   shadowSmall: {
     elevation: 2,
-    shadowColor: '#0F172A',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
+    shadowColor: '#4C1D95',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
   },
   shadowMedium: {
-    elevation: 4,
-    shadowColor: '#0F172A',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 10,
+    elevation: 5,
+    shadowColor: '#4C1D95',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.1,
+    shadowRadius: 14,
   },
   shadowLarge: {
-    elevation: 8,
-    shadowColor: '#0F172A',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.12,
-    shadowRadius: 20,
+    elevation: 10,
+    shadowColor: '#4C1D95',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.16,
+    shadowRadius: 24,
   },
 };
 

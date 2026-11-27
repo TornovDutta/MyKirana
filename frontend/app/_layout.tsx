@@ -50,42 +50,58 @@ export default function RootLayout() {
             overflow-x: hidden;
           }
           ::selection {
-            background-color: #A7F3D0;
-            color: #064E3B;
+            background-color: #DDD6FE;
+            color: #4C1D95;
+          }
+
+          /* Custom sleek scrollbar on web */
+          ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+          }
+          ::-webkit-scrollbar-track {
+            background: #F1F5F9;
+          }
+          ::-webkit-scrollbar-thumb {
+            background: #CBD5E1;
+            border-radius: 9999px;
+          }
+          ::-webkit-scrollbar-thumb:hover {
+            background: #8B5CF6;
           }
 
           /* Keyframe animations */
           @keyframes subtleFloat {
             0%, 100% { transform: translateY(0px); }
-            50% { transform: translateY(-8px); }
+            50% { transform: translateY(-10px); }
           }
           @keyframes gentlePulse {
-            0%, 100% { transform: scale(1); opacity: 0.95; }
-            50% { transform: scale(1.04); opacity: 1; }
+            0%, 100% { transform: scale(1); opacity: 0.92; }
+            50% { transform: scale(1.06); opacity: 1; }
           }
           @keyframes orbFloat1 {
             0%, 100% { transform: translate(0px, 0px) scale(1); }
-            50% { transform: translate(15px, -20px) scale(1.1); }
+            50% { transform: translate(24px, -24px) scale(1.12); }
           }
           @keyframes orbFloat2 {
             0%, 100% { transform: translate(0px, 0px) scale(1); }
-            50% { transform: translate(-20px, 15px) scale(0.95); }
+            50% { transform: translate(-24px, 18px) scale(0.94); }
           }
           @keyframes shimmerGlow {
             0% { opacity: 0.4; }
-            50% { opacity: 0.8; }
+            50% { opacity: 0.85; }
             100% { opacity: 0.4; }
           }
 
           /* Interactive smooth transitions */
           button, [role="button"] {
-            transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.18s ease, opacity 0.18s ease;
+            transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s ease, opacity 0.2s ease, background-color 0.2s ease;
           }
           button:hover, [role="button"]:hover {
-            transform: translateY(-1px);
+            transform: translateY(-2px);
           }
           button:active, [role="button"]:active {
-            transform: translateY(1px) scale(0.99);
+            transform: translateY(1px) scale(0.98);
           }
         `;
         document.head.appendChild(style);

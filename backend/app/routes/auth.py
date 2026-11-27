@@ -116,34 +116,36 @@ async def google_web_login(session_id: str = "", redirect_uri: str = "mykirana:/
       <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
       <style>
         body {{
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+          font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
           display: flex;
           flex-direction: column;
           align-items: center;
           justify-content: center;
           min-height: 100vh;
           margin: 0;
-          background-color: #f7f9f7;
-          color: #333;
+          background: linear-gradient(135deg, #F5F3FF 0%, #EEF2FF 100%);
+          color: #0F172A;
         }}
         .card {{
           background: white;
-          padding: 32px 24px;
-          border-radius: 16px;
-          box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+          padding: 36px 26px;
+          border-radius: 22px;
+          box-shadow: 0 12px 32px rgba(109, 40, 217, 0.12);
+          border: 1px solid #EDE9FE;
           text-align: center;
-          max-width: 360px;
+          max-width: 370px;
           width: 90%;
         }}
         .logo {{
-          font-size: 28px;
+          font-size: 30px;
           font-weight: 800;
-          color: #2E7D32;
-          margin-bottom: 8px;
+          color: #6D28D9;
+          margin-bottom: 6px;
+          letter-spacing: -0.5px;
         }}
         .tagline {{
           font-size: 13px;
-          color: #666;
+          color: #64748B;
           margin-bottom: 24px;
         }}
         .btn {{
@@ -151,29 +153,30 @@ async def google_web_login(session_id: str = "", redirect_uri: str = "mykirana:/
           align-items: center;
           justify-content: center;
           background: #fff;
-          border: 1.5px solid #ddd;
-          border-radius: 10px;
-          padding: 12px 20px;
+          border: 1.5px solid #CBD5E1;
+          border-radius: 14px;
+          padding: 13px 20px;
           font-size: 15px;
-          font-weight: 600;
-          color: #333;
+          font-weight: 700;
+          color: #0F172A;
           cursor: pointer;
           width: 100%;
           box-sizing: border-box;
           text-decoration: none;
-          transition: background-color 0.2s;
+          transition: transform 0.15s ease, background-color 0.2s;
         }}
         .btn:hover {{
-          background-color: #f0f0f0;
+          background-color: #F8FAFC;
         }}
         .btn-success {{
-          background-color: #2E7D32;
+          background-color: #6D28D9;
           color: #ffffff;
           border: none;
           margin-top: 14px;
+          box-shadow: 0 6px 16px rgba(109, 40, 217, 0.25);
         }}
         .btn-success:hover {{
-          background-color: #256628;
+          background-color: #5B21B6;
         }}
         .btn svg {{
           margin-right: 10px;
@@ -261,6 +264,9 @@ async def google_web_login(session_id: str = "", redirect_uri: str = "mykirana:/
 
           try {{ window.location.replace(targetUrl); }} catch(e) {{}}
           try {{ window.location.href = targetUrl; }} catch(e) {{}}
+          setTimeout(() => {{
+            try {{ if (returnLink) returnLink.click(); }} catch(e) {{}}
+          }}, 150);
         }}
 
         async function doGoogleLogin() {{

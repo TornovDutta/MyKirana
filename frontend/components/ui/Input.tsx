@@ -126,10 +126,10 @@ const styles = StyleSheet.create({
   },
   inputRowFocused: {
     borderColor: Colors.primary,
-    backgroundColor: '#FAFCFA',
+    backgroundColor: '#FAF8FF',
     ...(Platform.OS === 'web'
       ? {
-          boxShadow: '0 0 0 3px rgba(5, 150, 105, 0.12)',
+          boxShadow: '0 0 0 3px rgba(109, 40, 217, 0.14)',
         }
       : {}),
   },

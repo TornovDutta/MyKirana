@@ -59,16 +59,35 @@ export async function loginWithGoogle() {
   // Mobile Native Flow (Android & iOS Expo Go)
   const apiUrl = API_BASE_URL;
   const sessionId = Math.random().toString(36).substring(2) + Date.now().toString(36);
-  const redirectUri = Linking.createURL('auth');
+  const redirectUri = Linking.createURL('login');
   const authUrl = `${apiUrl}/auth/google-web?session_id=${sessionId}&redirect_uri=${encodeURIComponent(redirectUri)}`;
 
   let isComplete = false;
+  let urlSubscription: ReturnType<typeof Linking.addEventListener> | null = null;
 
-  // Poll backend session in background until user signs in (up to 90 seconds)
+  // Listen to incoming deep-link redirects directly as an extra safety net
+  const deepLinkPromise = new Promise<{ id_token: string; email?: string; name?: string } | null>((resolve) => {
+    const sub = Linking.addEventListener('url', ({ url }) => {
+      try {
+        const parsed = Linking.parse(url);
+        const token = parsed.queryParams?.id_token as string | undefined;
+        if (token) {
+          resolve({
+            id_token: token,
+            email: (parsed.queryParams?.email as string) || '',
+            name: (parsed.queryParams?.name as string) || '',
+          });
+        }
+      } catch {}
+    });
+    urlSubscription = sub;
+  });
+
+  // Poll backend session every 400ms for instant return detection
   const pollSession = async () => {
     const startTime = Date.now();
     while (!isComplete && Date.now() - startTime < 90000) {
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 400));
       if (isComplete) break;
       try {
         const resp = await fetch(`${apiUrl}/auth/google-session/${sessionId}`);
@@ -78,34 +97,28 @@ export async function loginWithGoogle() {
             return data;
           }
         }
-      } catch (e) {
-        // Network error during poll, will retry next second
+      } catch {
+        // Network error during poll, will retry
       }
     }
     return null;
   };
 
   try {
-    // Open in-app browser with auth session listener and race with background session polling
     const authSessionPromise = WebBrowser.openAuthSessionAsync(authUrl, redirectUri);
     const sessionPollPromise = pollSession();
 
     const winner = await Promise.race([
       authSessionPromise.then((res) => ({ type: 'browser' as const, res })),
       sessionPollPromise.then((data) => ({ type: 'poll' as const, data })),
+      deepLinkPromise.then((data) => ({ type: 'deeplink' as const, data })),
     ]);
 
     isComplete = true;
 
-    // Case 1: Session poll detected ready id_token first
-    if (winner.type === 'poll' && winner.data?.id_token) {
-      try {
-        await WebBrowser.dismissAuthSession();
-      } catch (e) {}
-      try {
-        await WebBrowser.dismissBrowser();
-      } catch (e) {}
-
+    if (winner.type === 'deeplink' && winner.data?.id_token) {
+      try { await WebBrowser.dismissAuthSession(); } catch {}
+      try { await WebBrowser.dismissBrowser(); } catch {}
       return {
         user: null,
         idToken: winner.data.id_token,
@@ -116,7 +129,19 @@ export async function loginWithGoogle() {
       };
     }
 
-    // Case 2: Browser redirect returned first with success URL
+    if (winner.type === 'poll' && winner.data?.id_token) {
+      try { await WebBrowser.dismissAuthSession(); } catch {}
+      try { await WebBrowser.dismissBrowser(); } catch {}
+      return {
+        user: null,
+        idToken: winner.data.id_token,
+        email: winner.data.email || '',
+        displayName: winner.data.name || '',
+        photoURL: null,
+        phoneNumber: null,
+      };
+    }
+
     if (winner.type === 'browser') {
       const browserRes = winner.res;
       if (browserRes.type === 'success' && browserRes.url) {
@@ -134,7 +159,7 @@ export async function loginWithGoogle() {
         }
       }
 
-      // If browser was dismissed/closed, check if session was recorded right before dismiss
+      // Check backend session once more in case browser closed right after auth
       try {
         const resp = await fetch(`${apiUrl}/auth/google-session/${sessionId}`);
         if (resp.ok) {
@@ -150,10 +175,9 @@ export async function loginWithGoogle() {
             };
           }
         }
-      } catch (e) {}
+      } catch {}
     }
 
-    // Fallback: wait a few seconds more for session in case of slight delay
     const finalData = await sessionPollPromise;
     if (finalData?.id_token) {
       return {
@@ -169,12 +193,9 @@ export async function loginWithGoogle() {
     throw new Error('Google sign-in was cancelled or timed out.');
   } finally {
     isComplete = true;
-    try {
-      await WebBrowser.dismissAuthSession();
-    } catch (e) {}
-    try {
-      await WebBrowser.dismissBrowser();
-    } catch (e) {}
+    (urlSubscription as { remove: () => void } | null)?.remove();
+    try { await WebBrowser.dismissAuthSession(); } catch {}
+    try { await WebBrowser.dismissBrowser(); } catch {}
   }
 }
 

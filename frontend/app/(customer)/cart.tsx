@@ -42,10 +42,12 @@ export default function CartScreen() {
   if (items.length === 0) {
     return (
       <View style={styles.empty}>
-        <Ionicons name="cart-outline" size={72} color={Colors.gray} />
+        <View style={styles.emptyIconCircle}>
+          <Ionicons name="cart-outline" size={56} color={Colors.primary} />
+        </View>
         <Text style={styles.emptyTitle}>Your cart is empty</Text>
-        <Text style={styles.emptySubtitle}>Add items from nearby shops</Text>
-        <Button title="Browse Shops" onPress={() => router.push('/(customer)')} style={styles.browseBtn} />
+        <Text style={styles.emptySubtitle}>Discover fresh groceries from nearby kirana shops</Text>
+        <Button title="Browse Nearby Shops" onPress={() => router.push('/(customer)')} style={styles.browseBtn} />
       </View>
     );
   }
@@ -53,8 +55,12 @@ export default function CartScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Cart ({items.length} items)</Text>
-        <Pressable onPress={clearCart} style={({ pressed }) => [pressed && { opacity: 0.7 }]}>
+        <View>
+          <Text style={styles.title}>Your Cart</Text>
+          <Text style={styles.subtitle}>{items.length} item{items.length > 1 ? 's' : ''} ready to order</Text>
+        </View>
+        <Pressable onPress={clearCart} style={({ pressed }) => [styles.clearPill, pressed && { opacity: 0.7 }]}>
+          <Ionicons name="trash-outline" size={14} color={Colors.white} />
           <Text style={styles.clearText}>Clear</Text>
         </Pressable>
       </View>
@@ -119,27 +125,67 @@ export default function CartScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
-  empty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 40, gap: 12 },
-  emptyTitle: { fontSize: 20, fontWeight: '700', color: Colors.text },
-  emptySubtitle: { fontSize: 14, color: Colors.textSecondary },
-  browseBtn: { marginTop: 8 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, paddingTop: 56, backgroundColor: Colors.white },
-  title: { fontSize: 20, fontWeight: '700', color: Colors.text },
-  clearText: { color: Colors.error, fontSize: 14, fontWeight: '600' },
+  empty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 40, gap: 12, backgroundColor: Colors.background },
+  emptyIconCircle: {
+    width: 110,
+    height: 110,
+    borderRadius: 55,
+    backgroundColor: Colors.primaryMuted,
+    borderWidth: 1,
+    borderColor: Colors.primarySubtle,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  emptyTitle: { fontSize: 22, fontWeight: '800', color: Colors.text },
+  emptySubtitle: { fontSize: 14, color: Colors.textSecondary, textAlign: 'center' },
+  browseBtn: { marginTop: 10 },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 56,
+    paddingBottom: 22,
+    backgroundColor: Colors.primary,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+  },
+  title: { fontSize: 23, fontWeight: '800', color: Colors.white, letterSpacing: -0.3 },
+  subtitle: { fontSize: 12, color: 'rgba(255,255,255,0.82)', marginTop: 2, fontWeight: '500' },
+  clearPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 999,
+  },
+  clearText: { color: Colors.white, fontSize: 13, fontWeight: '700' },
   list: { padding: 16, paddingBottom: 20 },
   footer: {
     backgroundColor: Colors.white,
-    padding: 16,
+    padding: 18,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
     borderTopWidth: 1,
-    borderTopColor: '#E2E8F0',
-    elevation: 4,
-    shadowColor: '#0F172A',
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
+    borderTopColor: Colors.primarySubtle,
+    elevation: 8,
+    shadowColor: '#4C1D95',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 14,
   },
-  previewBox: { backgroundColor: Colors.lightGray, borderRadius: 10, padding: 14, marginBottom: 12 },
-  previewTitle: { fontSize: 14, fontWeight: '700', color: Colors.primary, marginBottom: 8 },
+  previewBox: {
+    backgroundColor: Colors.primaryMuted,
+    borderWidth: 1,
+    borderColor: Colors.primarySubtle,
+    borderRadius: 16,
+    padding: 14,
+    marginBottom: 14,
+  },
+  previewTitle: { fontSize: 14, fontWeight: '800', color: Colors.primary, marginBottom: 8 },
   previewRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 },
   previewLabel: { fontSize: 13, color: Colors.textSecondary },
   previewValue: { fontSize: 13, fontWeight: '600', color: Colors.text },
