@@ -10,6 +10,9 @@ const getApiBaseUrl = (): string => {
   // On Mobile: connect directly to the machine serving the Expo bundle
   const host = Constants.expoConfig?.hostUri?.split(':')[0];
   if (Platform.OS !== 'web' && host) {
+    if (host === 'localhost' || host === '127.0.0.1') {
+      return Platform.OS === 'android' ? 'http://10.0.2.2:8000' : 'http://localhost:8000';
+    }
     return `http://${host}:8000`;
   }
 
@@ -18,7 +21,7 @@ const getApiBaseUrl = (): string => {
     return envUrl;
   }
 
-  return 'http://172.25.240.65:8000';
+  return Platform.OS === 'android' ? 'http://10.0.2.2:8000' : 'http://localhost:8000';
 };
 
 export const API_BASE_URL = getApiBaseUrl();
