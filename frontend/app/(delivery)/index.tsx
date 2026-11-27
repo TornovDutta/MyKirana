@@ -129,9 +129,23 @@ export default function AvailableDeliveries() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 40, gap: 10 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, paddingTop: 56, backgroundColor: Colors.white },
-  title: { fontSize: 22, fontWeight: '700', color: Colors.text },
-  refreshBtn: { padding: 8 },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 56,
+    paddingBottom: 22,
+    backgroundColor: Colors.primary,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+  },
+  title: { fontSize: 23, fontWeight: '800', color: Colors.white, letterSpacing: -0.3 },
+  refreshBtn: {
+    padding: 9,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+  },
   list: { padding: 16, paddingBottom: 80 },
   card: {
     backgroundColor: Colors.white,
